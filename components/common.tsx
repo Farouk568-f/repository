@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useProfile } from '../contexts/ProfileContext';
@@ -330,4 +330,64 @@ export const TVCursor: React.FC<{
         {clickEffect && <div style={rippleStyle} className="animate-ripple"></div>}
     </div>
   );
+};
+
+export const CustomSelect: React.FC<{
+    options: { value: string; label: string }[];
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+    className?: string;
+}> = ({ options, value, onChange, placeholder, className = '' }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const selectRef = useRef<HTMLDivElement>(null);
+    const selectedLabel = options.find(opt => opt.value === value)?.label || placeholder;
+
+    const handleSelect = (newValue: string) => {
+        onChange(newValue);
+        setIsOpen(false);
+    };
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
+                setIsOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return (
+        <div className={`relative ${className}`} ref={selectRef}>
+            <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="bg-[var(--surface)] border border-[var(--border)] text-white text-sm rounded-md focus:ring-[var(--primary)] focus:border-[var(--primary)] w-full p-2.5 flex justify-between items-center"
+            >
+                <span>{selectedLabel}</span>
+                <i className={`fas fa-chevron-down transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}></i>
+            </button>
+            {isOpen && (
+                <div className="absolute z-10 top-full mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <ul>
+                        <li
+                            className={`p-2.5 text-sm cursor-pointer hover:bg-[var(--primary)] ${!value ? 'bg-[var(--primary)]/50' : ''}`}
+                            onClick={() => handleSelect('')}
+                        >
+                            {placeholder}
+                        </li>
+                        {options.map(option => (
+                            <li
+                                key={option.value}
+                                onClick={() => handleSelect(option.value)}
+                                className={`p-2.5 text-sm cursor-pointer hover:bg-[var(--primary)] ${value === option.value ? 'bg-[var(--primary)]/50' : ''}`}
+                            >
+                                {option.label}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
 };
