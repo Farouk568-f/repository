@@ -61,8 +61,8 @@ const App: React.FC = () => {
     // Any key press should make the cursor visible
     showAndResetTimeout();
     
-    // Prevent default browser behavior for arrow keys (scrolling)
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
+    // Prevent default browser behavior for keys we handle, like scrolling.
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape'].includes(e.key)) {
         e.preventDefault();
     }
 
@@ -79,28 +79,46 @@ const App: React.FC = () => {
         case 'ArrowRight':
             setCursorPosition(prev => ({ ...prev, x: Math.min(window.innerWidth - 1, prev.x + CURSOR_SPEED) }));
             break;
-        case 'Enter':
+        case 'Escape': {
+            const activeEl = document.activeElement;
+            // If an input is focused, blur it to exit "typing mode".
+            if (activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement) {
+                activeEl.blur();
+            }
+            break;
+        }
+        case 'Enter': {
             // Temporarily hide the cursor to not interfere with elementFromPoint
             setCursorVisible(false);
             const element = document.elementFromPoint(cursorPosition.x, cursorPosition.y);
             setCursorVisible(true); // Show it back immediately
 
-            if (element) {
-                // Trigger click effect animation
-                setClickEffect(true);
-                setTimeout(() => setClickEffect(false), 400);
+            if (!element) break;
+            
+            const activeEl = document.activeElement;
 
-                // Explicitly focus input elements for better reliability.
-                // For other elements, a general click is appropriate.
-                if (element instanceof HTMLInputElement ||
-                    element instanceof HTMLTextAreaElement ||
-                    (element instanceof HTMLElement && element.isContentEditable)) {
-                    element.focus();
-                } else if (element instanceof HTMLElement) {
-                    element.click();
-                }
+            // If a text input is currently focused and the user clicks on something else,
+            // blur the input field first. This exits "typing mode" automatically.
+            if (
+                (activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement) &&
+                activeEl !== element
+            ) {
+                activeEl.blur();
+            }
+
+            // Trigger click effect animation
+            setClickEffect(true);
+            setTimeout(() => setClickEffect(false), 400);
+
+            if (element instanceof HTMLInputElement ||
+                element instanceof HTMLTextAreaElement ||
+                (element instanceof HTMLElement && element.isContentEditable)) {
+                element.focus();
+            } else if (element instanceof HTMLElement) {
+                element.click();
             }
             break;
+        }
         default:
             break;
     }
