@@ -5,6 +5,7 @@ import { Movie, YTPlayer } from '../types';
 import { useProfile } from '../contexts/ProfileContext';
 import { useTranslation } from '../contexts/LanguageContext';
 import Layout from '../components/Layout';
+import { CustomSelect } from '../components/common';
 import { IMAGE_BASE_URL, BACKDROP_SIZE, BACKDROP_SIZE_MEDIUM, POSTER_SIZE } from '../contexts/constants';
 
 const Hero: React.FC = () => {
@@ -146,25 +147,25 @@ const FilterBar: React.FC<{
     const { t } = useTranslation();
     const currentYear = new Date().getFullYear();
     const years = Array.from({ length: 30 }, (_, i) => currentYear - i);
+    const genreOptions = genres.map(g => ({ value: String(g.id), label: g.name }));
+    const yearOptions = years.map(y => ({ value: String(y), label: String(y) }));
 
     return (
         <div className="flex items-center gap-3 my-6 px-4 md:px-10">
-            <select
+            <CustomSelect
                 value={selectedGenre}
-                onChange={(e) => onGenreChange(e.target.value)}
-                className="bg-[var(--surface)] border border-[var(--border)] text-white text-sm rounded-md focus:ring-[var(--primary)] focus:border-[var(--primary)] block w-48 p-2.5"
-            >
-                <option value="">{t('allGenres')}</option>
-                {genres.map(genre => <option key={genre.id} value={genre.id}>{genre.name}</option>)}
-            </select>
-            <select
+                onChange={onGenreChange}
+                options={genreOptions}
+                placeholder={t('allGenres')}
+                className="w-48"
+            />
+            <CustomSelect
                 value={selectedYear}
-                onChange={(e) => onYearChange(e.target.value)}
-                className="bg-[var(--surface)] border border-[var(--border)] text-white text-sm rounded-md focus:ring-[var(--primary)] focus:border-[var(--primary)] block w-32 p-2.5"
-            >
-                <option value="">{t('byYear')}</option>
-                {years.map(year => <option key={year} value={year}>{year}</option>)}
-            </select>
+                onChange={onYearChange}
+                options={yearOptions}
+                placeholder={t('byYear')}
+                className="w-32"
+            />
         </div>
     );
 };
