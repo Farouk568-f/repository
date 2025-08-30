@@ -8,6 +8,8 @@ import ProfilePage from './pages/ProfilePage';
 import GenericPage from './pages/GenericPage';
 import ActorDetailsPage from './pages/ActorDetailsPage';
 import SettingsPage from './pages/SettingsPage';
+import MoviesPage from './pages/MoviesPage';
+import TvShowsPage from './pages/TvShowsPage';
 import { ProfileProvider, useProfile } from './contexts/ProfileContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { PlayerProvider } from './contexts/PlayerContext';
@@ -61,8 +63,8 @@ const App: React.FC = () => {
     // Any key press should make the cursor visible
     showAndResetTimeout();
     
-    // Prevent default browser behavior for keys we handle, like scrolling.
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape'].includes(e.key)) {
+    // Prevent default browser behavior for keys we handle, like scrolling and actions.
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
         e.preventDefault();
     }
 
@@ -79,12 +81,19 @@ const App: React.FC = () => {
         case 'ArrowRight':
             setCursorPosition(prev => ({ ...prev, x: Math.min(window.innerWidth - 1, prev.x + CURSOR_SPEED) }));
             break;
-        case 'Escape': {
+        case 'Escape':
+        case 'Backspace': // Common key for "Back" on many TV remotes
+        case 'Back': { // W3C standard for "Back" key
             const activeEl = document.activeElement;
-            // If an input is focused, blur it to exit "typing mode".
+            // If an input is focused, blur it to exit "typing mode" and prevent default navigation.
             if (activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement) {
+                e.preventDefault();
                 activeEl.blur();
+            } else if (e.key === 'Escape') {
+                // Preserve original behavior of preventing default for Escape even when not in an input.
+                e.preventDefault();
             }
+            // If 'Backspace' or 'Back' is pressed and no input is focused, default action (navigation) is allowed.
             break;
         }
         case 'Enter': {
@@ -251,6 +260,8 @@ const App: React.FC = () => {
             <Routes>
               <Route path="/" element={<ProfilePage />} />
               <Route path="/home" element={<HomePage />} />
+              <Route path="/movies" element={<MoviesPage />} />
+              <Route path="/tv" element={<TvShowsPage />} />
               <Route path="/actor/:id" element={<ActorDetailsPage />} />
               <Route path="/player" element={<PlayerPage />} />
               <Route path="/favorites" element={<GenericPageWrapper pageType="favorites" />} />
