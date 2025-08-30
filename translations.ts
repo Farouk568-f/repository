@@ -1,6 +1,5 @@
 
 
-
 export const translations = {
   en: {
     // General
@@ -121,6 +120,16 @@ export const translations = {
     'animatedAdventures': "Animated Adventures",
     'familyMovies': 'Family Movies',
     'disneyMagic': 'Disney Magic',
+    'action': "Action",
+    'comedy': "Comedy",
+    'horror': "Horror",
+    'sciFi': "Sci-Fi",
+    'animation': "Animation",
+    'airingToday': "Airing Today",
+    'trendingMovies': "Trending Movies",
+    'trendingTvShows': "Trending TV Shows",
+    'allGenres': "All Genres",
+    'byYear': "By Year",
 
     // DetailsPage
     'episodes': 'Episodes',
@@ -388,6 +397,16 @@ export const translations = {
     'animatedAdventures': "مغامرات رسوم متحركة",
     'familyMovies': 'أفلام عائلية',
     'disneyMagic': 'سحر ديزني',
+    'action': "أكشن",
+    'comedy': "كوميديا",
+    'horror': "رعب",
+    'sciFi': "خيال علمي",
+    'animation': "رسوم متحركة",
+    'airingToday': "يعرض اليوم",
+    'trendingMovies': "أفلام رائجة",
+    'trendingTvShows': "مسلسلات رائجة",
+    'allGenres': "كل الأنواع",
+    'byYear': "حسب السنة",
 
     // DetailsPage
     'episodes': 'الحلقات',
