@@ -53,7 +53,7 @@ const Hero: React.FC<{ movie: Movie | null; isKids: boolean; }> = ({ movie, isKi
     const heroImage = "https://images.squarespace-cdn.com/content/v1/56a1633ac21b86f80ddeacb4/106a6346-2ebd-4353-8bb4-b8a5e32320b2/squid+game+2+banner.jpg"; // Stable Squid Game banner URL
 
     return (
-        <div className="relative w-full h-[70vh] min-h-[300px] text-white overflow-hidden rounded-xl">
+        <div className="relative w-full h-[90vh] min-h-[400px] text-white overflow-hidden rounded-xl">
             <img
                 src={heroImage}
                 alt={movie?.title || movie?.name || 'Squid Game'}
