@@ -9,11 +9,10 @@ const TopNavbar: React.FC = () => {
   const navigate = useNavigate();
   const { activeProfile, switchProfile } = useProfile();
 
-  // FIX: Corrected translation keys and removed 'games' link.
   const navLinks = [
     { to: '/home', text: t('home') },
-    { to: '/#', text: t('tvShows') },
-    { to: '/#', text: t('movies') },
+    { to: '/tv', text: t('tvShows') },
+    { to: '/movies', text: t('movies') },
     { to: '/favorites', text: t('myList') },
   ];
 
@@ -86,7 +85,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return null; 
   }
 
-  const noPaddingTop = location.pathname === '/home';
+  const noPaddingTop = ['/home', '/movies', '/tv'].includes(location.pathname);
   const noLayout = location.pathname.startsWith('/player');
 
   if (noLayout) {
