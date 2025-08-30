@@ -148,73 +148,89 @@ const App: React.FC = () => {
     let animationFrameId: number;
     
     const scrollLoop = () => {
-        if (tvModeActive && cursorVisible) {
-            const pos = cursorPositionRef.current;
-            
-            // --- VERTICAL SCROLL LOGIC ---
-            const scrollableYTarget = ((): Element | Window => {
-                let element = document.elementFromPoint(pos.x, pos.y);
-                while (element) {
-                    const style = window.getComputedStyle(element);
-                    const isScrollable = style.overflowY === 'auto' || style.overflowY === 'scroll';
-                    if (isScrollable && element.scrollHeight > element.clientHeight) {
-                        return element;
-                    }
-                    if (element === document.body || element === document.documentElement) break;
-                    element = element.parentElement;
-                }
-                return window; // Default to the main window for vertical scroll
-            })();
+        if (!tvModeActive || !cursorVisible) {
+            animationFrameId = requestAnimationFrame(scrollLoop);
+            return;
+        }
 
-            const distanceToBottom = window.innerHeight - pos.y;
-            const distanceToTop = pos.y;
-            let scrollY = 0;
-            if (distanceToBottom < SCROLL_ZONE) {
-                const speedFactor = (SCROLL_ZONE - distanceToBottom) / SCROLL_ZONE;
+        const pos = cursorPositionRef.current;
+        let yTarget: Element | Window = window;
+        let xTarget: Element | null = null;
+        
+        let element = document.elementFromPoint(pos.x, pos.y);
+        
+        // Find the most specific scroll containers for X and Y
+        while (element) {
+            if (element === document.body || element === document.documentElement) break;
+            
+            const style = window.getComputedStyle(element);
+            
+            if (!xTarget) {
+                const isScrollableX = style.overflowX === 'auto' || style.overflowX === 'scroll';
+                if (isScrollableX && element.scrollWidth > element.clientWidth) {
+                    xTarget = element;
+                }
+            }
+
+            if (yTarget === window) {
+                const isScrollableY = style.overflowY === 'auto' || style.overflowY === 'scroll';
+                if (isScrollableY && element.scrollHeight > element.clientHeight) {
+                    yTarget = element;
+                }
+            }
+            
+            // Optimization: if we found both specific targets, we can stop traversing.
+            if (xTarget && yTarget !== window) break;
+
+            element = element.parentElement;
+        }
+
+        // --- VERTICAL SCROLL ---
+        const vRect = yTarget === window ? { top: 0, bottom: window.innerHeight } : (yTarget as Element).getBoundingClientRect();
+        const vDistanceToBottom = vRect.bottom - pos.y;
+        const vDistanceToTop = pos.y - vRect.top;
+        let scrollY = 0;
+
+        if (pos.y >= vRect.top && pos.y <= vRect.bottom) {
+            if (vDistanceToBottom < SCROLL_ZONE) {
+                const speedFactor = (SCROLL_ZONE - vDistanceToBottom) / SCROLL_ZONE;
                 scrollY = speedFactor * MAX_SCROLL_SPEED;
-            } else if (distanceToTop < SCROLL_ZONE) {
-                const speedFactor = (SCROLL_ZONE - distanceToTop) / SCROLL_ZONE;
+            } else if (vDistanceToTop < SCROLL_ZONE) {
+                const speedFactor = (SCROLL_ZONE - vDistanceToTop) / SCROLL_ZONE;
                 scrollY = -speedFactor * MAX_SCROLL_SPEED;
             }
+        }
+        
+        if (scrollY !== 0) {
+            if (yTarget === window) {
+                (yTarget as Window).scrollBy(0, scrollY);
+            } else {
+                (yTarget as Element).scrollTop += scrollY;
+            }
+        }
+        
+        // --- HORIZONTAL SCROLL ---
+        if (xTarget) {
+            const hRect = xTarget.getBoundingClientRect();
+            const hDistanceToRight = hRect.right - pos.x;
+            const hDistanceToLeft = pos.x - hRect.left;
+            let scrollX = 0;
 
-            if (scrollY !== 0) {
-                if (scrollableYTarget === window) {
-                    scrollableYTarget.scrollBy(0, scrollY);
-                } else {
-                    (scrollableYTarget as Element).scrollTop += scrollY;
+            if (pos.x >= hRect.left && pos.x <= hRect.right && pos.y >= hRect.top && pos.y <= hRect.bottom) {
+                if (hDistanceToRight < SCROLL_ZONE) {
+                    const speedFactor = (SCROLL_ZONE - hDistanceToRight) / SCROLL_ZONE;
+                    scrollX = speedFactor * MAX_SCROLL_SPEED;
+                } else if (hDistanceToLeft < SCROLL_ZONE) {
+                    const speedFactor = (SCROLL_ZONE - hDistanceToLeft) / SCROLL_ZONE;
+                    scrollX = -speedFactor * MAX_SCROLL_SPEED;
                 }
             }
             
-            // --- HORIZONTAL SCROLL LOGIC ---
-            const scrollableXTarget = ((): Element | null => {
-                let element = document.elementFromPoint(pos.x, pos.y);
-                while (element) {
-                    const style = window.getComputedStyle(element);
-                    const isScrollable = style.overflowX === 'auto' || style.overflowX === 'scroll';
-                    if (isScrollable && element.scrollWidth > element.clientWidth) {
-                        return element;
-                    }
-                    if (element === document.body || element === document.documentElement) break;
-                    element = element.parentElement;
-                }
-                return null; // Only scroll specific containers, not the whole window horizontally
-            })();
-
-            const distanceToRight = window.innerWidth - pos.x;
-            const distanceToLeft = pos.x;
-            let scrollX = 0;
-            if (distanceToRight < SCROLL_ZONE) {
-                const speedFactor = (SCROLL_ZONE - distanceToRight) / SCROLL_ZONE;
-                scrollX = speedFactor * MAX_SCROLL_SPEED;
-            } else if (distanceToLeft < SCROLL_ZONE) {
-                const speedFactor = (SCROLL_ZONE - distanceToLeft) / SCROLL_ZONE;
-                scrollX = -speedFactor * MAX_SCROLL_SPEED;
-            }
-
-            if (scrollX !== 0 && scrollableXTarget) {
-                 (scrollableXTarget as Element).scrollLeft += scrollX;
+            if (scrollX !== 0) {
+                xTarget.scrollLeft += scrollX;
             }
         }
+
         animationFrameId = requestAnimationFrame(scrollLoop);
     };
     
