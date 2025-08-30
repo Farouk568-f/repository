@@ -61,7 +61,44 @@ export const ProfileProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [modalItem, setModalItem] = useState<Movie | null>(null);
 
   useEffect(() => {
-    const data = getLocalStorageItem<AccountData>('cineStreamAccount', { screens: [], activeScreenId: null });
+    let data = getLocalStorageItem<AccountData>('cineStreamAccount', { screens: [], activeScreenId: null });
+
+    // If no profiles exist (first launch), create default ones.
+    if (data.screens.length === 0) {
+      const defaultUserAvatar = 'https://upload.wikimedia.org/wikipedia/commons/0/0b/Netflix-avatar.png';
+      const defaultKidsAvatar = 'https://loodibee.com/wp-content/uploads/Netflix-avatar-10.png';
+
+      const defaultProfiles: Profile[] = [
+        {
+          id: `scr_${Date.now()}_user`,
+          name: 'User',
+          avatar: defaultUserAvatar,
+          type: 'ADULT',
+          favorites: [],
+          history: [],
+          lastSearches: [],
+          downloads: [],
+          followedActors: [],
+          serverPreferences: [],
+        },
+        {
+          id: `scr_${Date.now()}_kids`,
+          name: 'Kids',
+          avatar: defaultKidsAvatar,
+          type: 'KIDS',
+          favorites: [],
+          history: [],
+          lastSearches: [],
+          downloads: [],
+          followedActors: [],
+          serverPreferences: [],
+        }
+      ];
+      
+      data = { screens: defaultProfiles, activeScreenId: null };
+      setLocalStorageItem('cineStreamAccount', data);
+    }
+
     setAccountData(data);
     if (data.activeScreenId) {
       const profile = data.screens.find(s => s.id === data.activeScreenId);
