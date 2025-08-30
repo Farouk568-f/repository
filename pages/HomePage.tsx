@@ -13,7 +13,7 @@ const Hero: React.FC<{ movie: Movie | null; isKids: boolean; }> = ({ movie, isKi
     if (isKids) {
         const heroImage = "https://theithacan.org/wp-content/uploads/2024/03/Kung-Fu-Pnda-4.jpg";
         return (
-            <div className="relative w-full h-[70vh] min-h-[300px] text-white overflow-hidden rounded-xl">
+            <div className="relative w-full h-[90vh] min-h-[400px] text-white overflow-hidden rounded-xl">
                 <img
                     src={heroImage}
                     alt={'Kung Fu Panda 4'}
