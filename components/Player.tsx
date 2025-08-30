@@ -519,7 +519,7 @@ const Controls: React.FC<any> = ({
                         {nextEpisode && <button onClick={handlePlayNext} title={t('nextEpisode')}><i className="fas fa-forward-step"></i></button>}
                         {item.media_type === 'tv' && <button onClick={() => handlePopoverToggle('episodes')} title={t('episodes')}><i className="fas fa-layer-group"></i></button>}
                         <button onClick={() => handlePopoverToggle('subtitles')} title={t('subtitles')}><i className="far fa-closed-captioning"></i></button>
-                        <button onClick={() => handlePopoverToggle('settings')} title={t('settings')}><Icons.SettingsIcon className="w-7 h-7" /></button>
+                        <button onClick={() => handlePopoverToggle('settings')} title={t('settings')}><Icons.SettingsIcon className="w-9 h-9" /></button>
                         <button onClick={toggleFullscreen}>
                             {isFullscreen ? <Icons.ExitFullscreenIcon className="w-7 h-7" /> : <Icons.EnterFullscreenIcon className="w-7 h-7" />}
                         </button>
@@ -564,29 +564,32 @@ const Controls: React.FC<any> = ({
                         </div>
                     </div>
                     <div className="mt-6 space-y-3 pt-4 border-t border-white/10">
-                        <h4 className="text-sm font-semibold opacity-80">{t('subtitleSettings')}</h4>
-                        <div className="space-y-4">
-                            <div>
-                                <div className="flex items-center justify-between text-xs opacity-80 mb-1"><span>{t('fontSize')}</span><span>{subtitleSettings.fontSize}%</span></div>
-                                <input type="range" min={50} max={200} value={subtitleSettings.fontSize} onChange={(e) => onUpdateSubtitleSettings((prev: any) => ({ ...prev, fontSize: Number(e.target.value) }))} className="w-full" />
+                        <h4 className="text-sm font-semibold opacity-80 mb-2">{t('subtitleSettings')}</h4>
+                        
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm opacity-90">{t('fontSize')}</span>
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => onUpdateSubtitleSettings((prev: any) => ({ ...prev, fontSize: Math.max(50, prev.fontSize - 10) }))} className="w-11 h-9 flex items-center justify-center bg-white/10 rounded-md text-2xl font-bold btn-press" aria-label={`Decrease ${t('fontSize')}` }>-</button>
+                                <span className="w-16 text-center font-semibold text-base tabular-nums">{subtitleSettings.fontSize}%</span>
+                                <button onClick={() => onUpdateSubtitleSettings((prev: any) => ({ ...prev, fontSize: Math.min(200, prev.fontSize + 10) }))} className="w-11 h-9 flex items-center justify-center bg-white/10 rounded-md text-2xl font-bold btn-press" aria-label={`Increase ${t('fontSize')}` }>+</button>
                             </div>
-                            <div>
-                                <div className="flex items-center justify-between text-xs opacity-80 mb-1"><span>{t('backgroundOpacity')}</span><span>{subtitleSettings.backgroundOpacity}%</span></div>
-                                <input type="range" min={0} max={100} value={subtitleSettings.backgroundOpacity} onChange={(e) => onUpdateSubtitleSettings((prev: any) => ({ ...prev, backgroundOpacity: Number(e.target.value) }))} className="w-full" />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm opacity-90">{t('backgroundOpacity')}</span>
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => onUpdateSubtitleSettings((prev: any) => ({ ...prev, backgroundOpacity: Math.max(0, prev.backgroundOpacity - 10) }))} className="w-11 h-9 flex items-center justify-center bg-white/10 rounded-md text-2xl font-bold btn-press" aria-label={`Decrease ${t('backgroundOpacity')}` }>-</button>
+                                <span className="w-16 text-center font-semibold text-base tabular-nums">{subtitleSettings.backgroundOpacity}%</span>
+                                <button onClick={() => onUpdateSubtitleSettings((prev: any) => ({ ...prev, backgroundOpacity: Math.min(100, prev.backgroundOpacity + 10) }))} className="w-11 h-9 flex items-center justify-center bg-white/10 rounded-md text-2xl font-bold btn-press" aria-label={`Increase ${t('backgroundOpacity')}` }>+</button>
                             </div>
-                             <div>
-                                <div className="flex items-center justify-between text-xs opacity-80 mb-1">
-                                    <span>{t('verticalPosition')}</span>
-                                    <span>{subtitleSettings.verticalPosition}%</span>
-                                </div>
-                                <input 
-                                    type="range" 
-                                    min={2} 
-                                    max={85} 
-                                    value={subtitleSettings.verticalPosition} 
-                                    onChange={(e) => onUpdateSubtitleSettings((prev: any) => ({ ...prev, verticalPosition: Number(e.target.value) }))} 
-                                    className="w-full" 
-                                />
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <span className="text-sm opacity-90">{t('verticalPosition')}</span>
+                            <div className="flex items-center gap-3">
+                                <button onClick={() => onUpdateSubtitleSettings((prev: any) => ({ ...prev, verticalPosition: Math.max(2, prev.verticalPosition - 5) }))} className="w-11 h-9 flex items-center justify-center bg-white/10 rounded-md text-2xl font-bold btn-press" aria-label={`Decrease ${t('verticalPosition')}` }>-</button>
+                                <span className="w-16 text-center font-semibold text-base tabular-nums">{subtitleSettings.verticalPosition}%</span>
+                                <button onClick={() => onUpdateSubtitleSettings((prev: any) => ({ ...prev, verticalPosition: Math.min(85, prev.verticalPosition + 5) }))} className="w-11 h-9 flex items-center justify-center bg-white/10 rounded-md text-2xl font-bold btn-press" aria-label={`Increase ${t('verticalPosition')}` }>+</button>
                             </div>
                         </div>
                     </div>
