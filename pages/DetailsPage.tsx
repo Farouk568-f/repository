@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchFromTMDB, fetchStreamUrl } from '../services/apiService';
 import { Movie, Episode, Season } from '../types';
@@ -6,6 +6,7 @@ import { useProfile } from '../contexts/ProfileContext';
 import { useTranslation } from '../contexts/LanguageContext';
 import Layout from '../components/Layout';
 import { IMAGE_BASE_URL, BACKDROP_SIZE, BACKDROP_SIZE_MEDIUM, POSTER_SIZE } from '../contexts/constants';
+import { CustomSelect } from '../components/common';
 
 const SimilarItemCard: React.FC<{ item: Movie, index: number }> = ({ item, index }) => {
   const navigate = useNavigate();
@@ -131,6 +132,16 @@ const DetailsPage: React.FC = () => {
      navigate('/player', { state: { item, type, season: selectedSeason, episode, streamUrl: prefetchedStreamUrl } });
   }
 
+  const seasonOptions = useMemo(() => {
+    if (!item?.seasons) return [];
+    return item.seasons
+        .filter(s => s.season_number > 0 && s.episode_count > 0)
+        .map(season => ({
+            value: String(season.season_number),
+            label: `${t('season')} ${season.season_number} (${t('episodeCount', {count: season.episode_count})})`
+        }));
+  }, [item?.seasons, t]);
+
   if (loading || !item) {
     return (
       <Layout>
@@ -251,20 +262,17 @@ const DetailsPage: React.FC = () => {
         {activeTab === 'episodes' && type === 'tv' && (
           <div>
             <div className="relative mb-4">
-                <select 
-                    value={selectedSeason}
-                    onChange={(e) => fetchEpisodes(id!, parseInt(e.target.value))}
-                    className="w-full px-4 py-3 text-white bg-[var(--surface)] border-2 border-[var(--border)] rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
-                >
-                {item.seasons?.filter(s => s.season_number > 0 && s.episode_count > 0).map(season => (
-                    <option key={season.id} value={season.season_number}>
-                        {t('season')} {season.season_number} ({t('episodeCount', {count: season.episode_count})})
-                    </option>
-                ))}
-                </select>
-                <div className="absolute inset-y-0 flex items-center px-2 pointer-events-none end-2">
-                    <i className="text-gray-400 fa-solid fa-chevron-down"></i>
-                </div>
+                 <CustomSelect
+                    value={String(selectedSeason)}
+                    onChange={(value) => {
+                        if (value && id) {
+                            fetchEpisodes(id, parseInt(value, 10));
+                        }
+                    }}
+                    options={seasonOptions}
+                    placeholder={t('season')}
+                    className="w-full"
+                />
             </div>
             <div className="flex flex-col gap-3">
               {episodes.map((episode, index) => (
