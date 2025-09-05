@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useProfile } from '../contexts/ProfileContext';
@@ -171,6 +171,16 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
         onClose();
         navigate('/player', { state: { item: details, type, season: selectedSeason, episode } });
     };
+    
+    const seasonOptions = useMemo(() => {
+        if (!details?.seasons) return [];
+        return details.seasons
+            .filter(s => s.season_number > 0 && s.episode_count > 0)
+            .map(season => ({
+                value: String(season.season_number),
+                label: `${t('season')} ${season.season_number}`
+            }));
+    }, [details?.seasons, t]);
 
     const isFav = details ? isFavorite(details.id) : false;
 
@@ -239,17 +249,17 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
                                     <div className="mt-8">
                                         <div className="flex items-center justify-between mb-4">
                                             <h2 className="text-2xl font-bold">{t('episodes')}</h2>
-                                            <select 
-                                                value={selectedSeason}
-                                                onChange={(e) => fetchEpisodes(details.id, parseInt(e.target.value))}
-                                                className="px-4 py-2 text-white bg-zinc-800 border border-zinc-700 rounded-md appearance-none text-sm focus:outline-none focus:ring-1 focus:ring-white"
-                                            >
-                                            {details.seasons?.filter(s => s.season_number > 0 && s.episode_count > 0).map(season => (
-                                                <option key={season.id} value={season.season_number}>
-                                                    {t('season')} {season.season_number}
-                                                </option>
-                                            ))}
-                                            </select>
+                                            <CustomSelect
+                                                value={String(selectedSeason)}
+                                                onChange={(value) => {
+                                                    if (value) {
+                                                        fetchEpisodes(details.id, parseInt(value, 10));
+                                                    }
+                                                }}
+                                                options={seasonOptions}
+                                                placeholder={t('season')}
+                                                className="w-48"
+                                            />
                                         </div>
                                         <div className="flex flex-col gap-4 max-h-80 overflow-y-auto pr-2">
                                         {episodes.map((episode) => (
