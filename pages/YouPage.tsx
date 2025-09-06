@@ -84,7 +84,7 @@ const ResumeCard: React.FC<{ item: HistoryItem }> = ({ item }) => {
     }
 
     return (
-        <div onClick={handleDetails} className="relative w-full overflow-hidden cursor-pointer group rounded-lg bg-zinc-800 shadow-xl interactive-card">
+        <div onClick={handleDetails} className="relative w-full overflow-hidden cursor-pointer group rounded-xl bg-zinc-800 shadow-xl interactive-card">
             <img src={item.itemImage} alt={item.title} className="w-full h-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent"></div>
             <div className="absolute inset-0 p-4 flex flex-col justify-end">
@@ -118,7 +118,7 @@ const HistoryCard: React.FC<{ item: HistoryItem, index: number }> = ({ item, ind
 
     return (
         <div onClick={handleClick} className="flex-shrink-0 w-64 cursor-pointer group interactive-card">
-            <div className="relative overflow-hidden rounded-lg bg-zinc-800 shadow-lg">
+            <div className="relative overflow-hidden rounded-xl bg-zinc-800 shadow-lg">
                 <img src={item.itemImage} alt={item.title} className="w-full aspect-video object-cover" loading="lazy" />
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-zinc-600/50">
                     <div className="h-full bg-red-600" style={{ width: `${progress}%` }}></div>
@@ -146,7 +146,7 @@ const PlaylistCard: React.FC<{ title: string; subtitle: string; icon: string; co
 
     return (
         <div onClick={onClick} className="flex-shrink-0 w-48 cursor-pointer group interactive-card-sm">
-            <div className="relative overflow-hidden rounded-lg bg-zinc-800 shadow-lg aspect-video">
+            <div className="relative overflow-hidden rounded-xl bg-zinc-800 shadow-lg aspect-video">
                 {coverImage ? (
                     <>
                         <img src={coverImage} alt={title} className="w-full h-full object-cover" loading="lazy" />
@@ -227,7 +227,7 @@ const FollowedActorsCarousel: React.FC = () => {
                     <div className="flex gap-4 px-4">
                         {movies.map((movie) => (
                              <div key={movie.id} onClick={() => navigate(`/details/movie/${movie.id}`)} className="flex-shrink-0 w-32 cursor-pointer group interactive-card-sm">
-                                <div className="relative overflow-hidden rounded-lg bg-zinc-800 shadow-lg">
+                                <div className="relative overflow-hidden rounded-xl bg-zinc-800 shadow-lg">
                                     <img src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`} alt={movie.title} className="w-full aspect-[3/4] object-cover" loading="lazy" />
                                 </div>
                                 <h3 className="mt-2 text-xs font-semibold text-white truncate">{movie.title}</h3>
@@ -268,7 +268,7 @@ const YouPage: React.FC = () => {
     return (
         <Layout>
             <div className="bg-transparent text-white min-h-screen pb-10">
-                <div className="p-4 space-y-8">
+                <div className="p-4 pt-24 space-y-8">
                     <div className="animate-fade-in-up" style={{ animationDelay: '100ms' }}>
                         <ProfileHeader 
                             profile={activeProfile} 
