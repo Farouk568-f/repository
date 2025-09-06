@@ -41,7 +41,7 @@ const ItemCard: React.FC<{ item: Movie | FavoriteItem, index: number }> = ({ ite
             style={{ animationDelay: `${index * 30}ms` }}
             onClick={handleItemClick}
         >
-            <div className="relative overflow-hidden transition-all duration-300 ease-in-out rounded-md shadow-lg bg-[var(--surface)] interactive-card">
+            <div className="relative overflow-hidden transition-all duration-300 ease-in-out rounded-lg shadow-lg bg-[var(--surface)] interactive-card">
                  <img
                     src={imageUrl}
                     alt={title}
@@ -55,7 +55,7 @@ const ItemCard: React.FC<{ item: Movie | FavoriteItem, index: number }> = ({ ite
 
 const SkeletonCard: React.FC = () => (
     <div className="w-full animate-pulse">
-        <div className="aspect-video w-full rounded-md bg-[var(--surface)]"></div>
+        <div className="aspect-video w-full rounded-lg bg-[var(--surface)]"></div>
     </div>
 );
 
@@ -77,7 +77,7 @@ const SearchResultCard: React.FC<{ item: Movie, index: number }> = ({ item, inde
             style={{ animationDelay: `${index * 30}ms` }}
             onClick={handleCardClick}
         >
-          <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-sm shadow-lg bg-[var(--surface)] interactive-card">
+          <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-lg shadow-lg bg-[var(--surface)] interactive-card">
             <img
               src={`${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${item.backdrop_path}`}
               alt={item.title || item.name}
@@ -241,7 +241,7 @@ const GenericPage: React.FC<{
                 return (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                         {Array.from({ length: 18 }).map((_, i) => (
-                             <div key={i} className="w-full animate-pulse aspect-video bg-[var(--surface)] rounded-md"></div>
+                             <div key={i} className="w-full animate-pulse aspect-video bg-[var(--surface)] rounded-lg"></div>
                         ))}
                     </div>
                 );
@@ -271,7 +271,7 @@ const GenericPage: React.FC<{
                         {isInitialLoading ? (
                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                                 {Array.from({ length: 12 }).map((_, i) => (
-                                    <div key={i} className="w-full animate-pulse aspect-video bg-[var(--surface)] rounded-md"></div>
+                                    <div key={i} className="w-full animate-pulse aspect-video bg-[var(--surface)] rounded-lg"></div>
                                 ))}
                             </div>
                         ) : (
@@ -286,7 +286,7 @@ const GenericPage: React.FC<{
         
         return (
              <Layout>
-                <div className="p-4 md:px-10">
+                <div className="p-4 pt-24 md:px-10">
                     <div className="relative mb-8">
                         <i className="fa-solid fa-magnifying-glass text-zinc-400 absolute left-5 top-1/2 -translate-y-1/2 text-xl pointer-events-none z-10"></i>
                         <input
@@ -340,7 +340,7 @@ const GenericPage: React.FC<{
     
     return (
         <Layout>
-            <div className="p-4 md:px-10">
+            <div className="p-4 pt-24 md:px-10">
                 <h1 className="mb-8 text-4xl md:text-5xl font-bold">{pageType === 'all' && category ? t('allCategory', {category: t(category as any) || category}) : title}</h1>
                 {renderContent()}
             </div>
