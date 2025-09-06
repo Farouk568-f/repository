@@ -72,6 +72,8 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
     const lastTap = useRef(0);
     const fetchIdRef = useRef(0);
     const timeOnSwitchRef = useRef(0);
+    // FIX: Using ReturnType ensures the correct timer ID type is used regardless of a browser or Node.js environment.
+    const longPressRef = useRef<{ timer: ReturnType<typeof setTimeout> | null, interval: ReturnType<typeof setInterval> | null, key: string | null }>({ timer: null, interval: null, key: null });
 
     const [streamLinks, setStreamLinks] = useState<StreamLink[]>([]);
     const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(initialStreamUrl || null);
@@ -106,6 +108,12 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
 
     const hideControls = useCallback(() => { if (!videoRef.current?.paused && !isPopoverOpenRef.current) { setShowControls(false); setActivePopover(null); } }, []);
     const resetControlsTimeout = useCallback(() => { if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current); setShowControls(true); controlsTimeoutRef.current = setTimeout(hideControls, 5000); }, [hideControls]);
+
+    const seekVideo = useCallback((amount: number) => {
+        if (videoRef.current) {
+            videoRef.current.currentTime = Math.max(0, Math.min(videoRef.current.duration, videoRef.current.currentTime + amount));
+        }
+    }, []);
 
     // Effect 1: Fetch the stream URL and subtitles info
     useEffect(() => {
@@ -332,12 +340,6 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
         }
     }, [resetControlsTimeout, showControls]);
 
-    const handleSeek = (forward: boolean) => {
-        const video = videoRef.current;
-        if (video) video.currentTime += forward ? 10 : -10;
-        resetControlsTimeout();
-    };
-
     const handleDoubleTap = (e: React.TouchEvent) => {
         const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
         const tapX = e.touches[0].clientX - rect.left;
@@ -345,8 +347,8 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
         const now = new Date().getTime();
         if ((now - lastTap.current) < 400) {
             e.preventDefault();
-            if (tapX < width / 3) handleSeek(false);
-            else if (tapX > (width * 2) / 3) handleSeek(true);
+            if (tapX < width / 3) seekVideo(-10);
+            else if (tapX > (width * 2) / 3) seekVideo(10);
             else togglePlay();
         }
         lastTap.current = now;
@@ -377,6 +379,54 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
         if (video) video.muted = !video.muted;
         resetControlsTimeout();
     }, [resetControlsTimeout]);
+
+    // Keyboard navigation and controls
+    useEffect(() => {
+        const handleKeyUp = (e: KeyboardEvent) => {
+            if (longPressRef.current.key && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+                if (longPressRef.current.timer) clearTimeout(longPressRef.current.timer);
+                if (longPressRef.current.interval) clearInterval(longPressRef.current.interval);
+                longPressRef.current = { timer: null, interval: null, key: null };
+            }
+        };
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (isPopoverOpenRef.current) return;
+            resetControlsTimeout();
+            const { key } = e;
+            const activeElement = document.activeElement as HTMLElement;
+
+            if (activeElement === progressBarRef.current && (key === 'ArrowLeft' || key === 'ArrowRight')) {
+                e.preventDefault();
+                if (longPressRef.current.key === key) return; // Key already held down
+                longPressRef.current.key = key;
+                
+                seekVideo(key === 'ArrowRight' ? 5 : -5); // Initial seek
+                
+                longPressRef.current.timer = setTimeout(() => {
+                    longPressRef.current.interval = setInterval(() => {
+                        seekVideo(key === 'ArrowRight' ? 10 : -10); // Accelerated seek
+                    }, 150);
+                }, 400);
+                return;
+            }
+
+            if (key === ' ' && !['BUTTON', 'INPUT', 'DIV'].includes(activeElement.tagName)) {
+                e.preventDefault();
+                togglePlay();
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        document.addEventListener('keyup', handleKeyUp);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+            document.removeEventListener('keyup', handleKeyUp);
+            if (longPressRef.current.timer) clearTimeout(longPressRef.current.timer);
+            if (longPressRef.current.interval) clearInterval(longPressRef.current.interval);
+        };
+    }, [seekVideo, togglePlay, resetControlsTimeout]);
+
 
     const nextEpisode = useMemo(() => {
         if (!initialEpisode || !episodes || episodes.length === 0) return null;
@@ -436,7 +486,7 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
             
             <Controls
                 showControls={showControls} isPlaying={isPlaying} currentTime={currentTime} duration={duration}
-                isFullscreen={isFullscreen} togglePlay={togglePlay} handleSeek={handleSeek} toggleFullscreen={toggleFullscreen}
+                isFullscreen={isFullscreen} togglePlay={togglePlay} handleSeek={(forward: boolean) => seekVideo(forward ? 10 : -10)} toggleFullscreen={toggleFullscreen}
                 activePopover={activePopover} setActivePopover={setActivePopover} navigate={navigate} t={t} item={item}
                 episode={initialEpisode} season={initialSeason} progressBarRef={progressBarRef} 
                 nextEpisode={nextEpisode} handlePlayNext={handlePlayNext} vttTracks={vttTracks} 
@@ -464,6 +514,21 @@ const Controls: React.FC<any> = ({
     streamLinks, activeQuality, handleQualityChange
 }) => {
     
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                e.stopPropagation();
+                setActivePopover(null);
+            }
+        };
+        if (activePopover) {
+            document.addEventListener('keydown', handleKeyDown);
+        }
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [activePopover, setActivePopover]);
+
+
     const handleProgressInteraction = (e: React.MouseEvent | React.TouchEvent) => {
         if (!progressBarRef.current || duration === 0) return;
         const event = 'touches' in e ? e.touches[0] : e;
@@ -488,25 +553,25 @@ const Controls: React.FC<any> = ({
         <div className={`controls-bar absolute inset-0 text-white transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/50"></div>
             <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center pointer-events-auto">
-                <button onClick={() => navigate(-1)} className="w-10 h-10 text-xl"><i className="fas fa-arrow-left text-2xl"></i></button>
+                <button onClick={() => navigate(-1)} className="w-10 h-10 text-xl focusable transition-transform duration-200 ease-in-out hover:scale-110"><i className="fas fa-arrow-left text-2xl"></i></button>
             </div>
             <div className="absolute bottom-0 left-0 right-0 p-4 lg:p-6 pointer-events-auto flex flex-col gap-1">
                  <div className="flex items-center gap-x-3 text-sm font-mono">
-                     <div ref={progressBarRef} onClick={handleProgressClick} onMouseMove={handleProgressDrag} className="w-full flex items-center cursor-pointer group h-5">
-                        <div className="relative w-full bg-white/20 rounded-full transition-all duration-200 h-1.5 group-hover:h-2.5">
+                     <div ref={progressBarRef} tabIndex={0} onClick={handleProgressClick} onMouseMove={handleProgressDrag} className="w-full flex items-center cursor-pointer group h-5 focusable">
+                        <div className="relative w-full bg-white/20 rounded-full transition-all duration-200 h-1.5 group-hover:h-2.5 group-focus-within:h-2.5">
                             <div className="absolute h-full bg-[var(--primary)] rounded-full" style={{ width: `${(currentTime / duration) * 100}%` }} />
-                            <div className="absolute top-1/2 -translate-y-1/2 bg-[var(--primary)] rounded-full -translate-x-1/2 transition-transform duration-200 z-10 w-3.5 h-3.5 scale-100 group-hover:scale-125" style={{ left: `${(currentTime / duration) * 100}%` }} />
+                            <div className="absolute top-1/2 -translate-y-1/2 bg-[var(--primary)] rounded-full -translate-x-1/2 transition-transform duration-200 z-10 w-3.5 h-3.5 scale-0 group-hover:scale-125 group-focus-within:scale-125" style={{ left: `${(currentTime / duration) * 100}%` }} />
                         </div>
                     </div>
                     <span className="text-sm w-20 text-center">-{formatTime(remainingTime)}</span>
                  </div>
                  <div className="flex items-center justify-between gap-x-2">
                     <div className="flex items-center gap-x-2 md:gap-x-4">
-                        <button onClick={togglePlay} className="text-4xl w-14 h-14 flex items-center justify-center"><i className={`fas ${isPlaying ? 'fa-pause' : 'fa-play'}`}></i></button>
-                        <button onClick={() => handleSeek(false)} className="text-xl w-8 h-8 flex items-center justify-center"><Icons.RewindIcon className="w-8 h-8" /></button>
-                        <button onClick={() => handleSeek(true)} className="text-xl w-8 h-8 flex items-center justify-center"><Icons.ForwardIcon className="w-8 h-8" /></button>
+                        <button onClick={togglePlay} className="text-4xl w-14 h-14 flex items-center justify-center focusable transition-transform duration-200 ease-in-out hover:scale-110"><i className={`fas ${isPlaying ? 'fa-pause' : 'fa-play'}`}></i></button>
+                        <button onClick={() => handleSeek(false)} className="text-xl w-8 h-8 flex items-center justify-center focusable transition-transform duration-200 ease-in-out hover:scale-110"><Icons.RewindIcon className="w-8 h-8" /></button>
+                        <button onClick={() => handleSeek(true)} className="text-xl w-8 h-8 flex items-center justify-center focusable transition-transform duration-200 ease-in-out hover:scale-110"><Icons.ForwardIcon className="w-8 h-8" /></button>
                         <div className="relative group flex items-center">
-                            <button onClick={onToggleMute} className="text-2xl w-10 h-10 flex items-center justify-center">
+                            <button onClick={onToggleMute} className="text-2xl w-10 h-10 flex items-center justify-center focusable transition-transform duration-200 ease-in-out hover:scale-110">
                                 {isMuted || volume === 0 ? <Icons.VolumeMuteIcon className="w-8 h-8" /> : <Icons.VolumeHighIcon className="w-8 h-8" />}
                             </button>
                             <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-8 h-32 p-2 bg-black/60 rounded-lg flex-col items-center justify-center hidden group-hover:flex backdrop-blur-sm">
@@ -516,11 +581,11 @@ const Controls: React.FC<any> = ({
                         <div className="text-lg text-zinc-100 font-bold ml-4 hidden md:block truncate max-w-sm lg:max-w-lg">{item.title || item.name}{episodeTitle && `: ${episodeTitle}`}</div>
                     </div>
                     <div className="flex items-center gap-x-3 md:gap-x-4 text-2xl">
-                        {nextEpisode && <button onClick={handlePlayNext} title={t('nextEpisode')}><i className="fas fa-forward-step"></i></button>}
-                        {item.media_type === 'tv' && <button onClick={() => handlePopoverToggle('episodes')} title={t('episodes')}><i className="fas fa-layer-group"></i></button>}
-                        <button onClick={() => handlePopoverToggle('subtitles')} title={t('subtitles')}><i className="far fa-closed-captioning"></i></button>
-                        <button onClick={() => handlePopoverToggle('settings')} title={t('settings')}><Icons.SettingsIcon className="w-7 h-7" /></button>
-                        <button onClick={toggleFullscreen}>
+                        {nextEpisode && <button onClick={handlePlayNext} title={t('nextEpisode')} className="focusable transition-transform duration-200 ease-in-out hover:scale-110"><i className="fas fa-forward-step"></i></button>}
+                        {item.media_type === 'tv' && <button onClick={() => handlePopoverToggle('episodes')} title={t('episodes')} className="focusable transition-transform duration-200 ease-in-out hover:scale-110"><i className="fas fa-layer-group"></i></button>}
+                        <button onClick={() => handlePopoverToggle('subtitles')} title={t('subtitles')} className="focusable transition-transform duration-200 ease-in-out hover:scale-110"><i className="far fa-closed-captioning"></i></button>
+                        <button onClick={() => handlePopoverToggle('settings')} title={t('settings')} className="focusable transition-transform duration-200 ease-in-out hover:scale-110"><Icons.SettingsIcon className="w-7 h-7" /></button>
+                        <button onClick={toggleFullscreen} className="focusable transition-transform duration-200 ease-in-out hover:scale-110">
                             {isFullscreen ? <Icons.ExitFullscreenIcon className="w-7 h-7" /> : <Icons.EnterFullscreenIcon className="w-7 h-7" />}
                         </button>
                     </div>
