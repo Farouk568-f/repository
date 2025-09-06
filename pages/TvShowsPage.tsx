@@ -99,7 +99,7 @@ const PosterCard: React.FC<{ movie: Movie; onCardClick: (movie: Movie) => void; 
 
     return (
         <div className="interactive-card-container flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px] cursor-pointer" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} data-movie-id={movie.id}>
-            <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-sm shadow-lg bg-[var(--surface)] interactive-card">
+            <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-lg shadow-lg bg-[var(--surface)] interactive-card">
                 {isNetflixOriginal && ( <span style={{ fontFamily: "'Anton', sans-serif", textShadow: '1px 1px 3px rgba(0,0,0,0.5)' }} className="absolute top-2 left-2 z-10 text-3xl font-black text-[var(--primary)] pointer-events-none">N</span> )}
                 <div className="relative w-full aspect-video bg-black" onClick={() => onCardClick(movie)}>
                     <img src={`${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${movie.backdrop_path}`} alt={movie.title || movie.name} className={`object-cover w-full h-full absolute inset-0 transition-opacity duration-700 ${showVideo ? 'opacity-0' : 'opacity-100'}`} loading="lazy" />
@@ -132,7 +132,8 @@ const ContentRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie
     return (
         <div className="my-6 md:my-8" style={{ zIndex }}>
             <h2 className="text-lg md:text-xl font-bold text-white mb-3">{title}</h2>
-            <div className="overflow-x-auto no-scrollbar py-32 -my-32"><div className="flex flex-nowrap gap-x-2">{movies.map(movie => <PosterCard key={movie.id} movie={movie} onCardClick={onCardClick} isNetflixOriginal={isNetflixRow} />)}</div></div>
+            {/* FIX: The PosterCard component expects an `isNetflixOriginal` prop, not `isNetflixRow`. */}
+            <div className="overflow-x-auto no-scrollbar py-32 -my-32"><div className="flex flex-nowrap gap-x-6">{movies.map(movie => <PosterCard key={movie.id} movie={movie} onCardClick={onCardClick} isNetflixOriginal={isNetflixRow} />)}</div></div>
         </div>
     );
 };
@@ -180,7 +181,7 @@ const FilteredItemCard: React.FC<{ item: Movie, index: number }> = ({ item, inde
             style={{ animationDelay: `${index * 30}ms` }}
             onClick={() => setModalItem({ ...item, media_type: 'tv' })}
         >
-            <div className="relative overflow-hidden transition-all duration-300 ease-in-out rounded-md shadow-lg bg-[var(--surface)] interactive-card">
+            <div className="relative overflow-hidden transition-all duration-300 ease-in-out rounded-lg shadow-lg bg-[var(--surface)] interactive-card">
                  <img
                     src={`${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${item.backdrop_path}`}
                     alt={item.title || item.name}
@@ -193,13 +194,13 @@ const FilteredItemCard: React.FC<{ item: Movie, index: number }> = ({ item, inde
 };
 
 const SkeletonLoader: React.FC = () => (
-    <div className="px-4 md:px-10 pt-24">
+    <div className="px-4 md:px-10">
         <div className="relative w-full h-[70vh] min-h-[500px] bg-[var(--surface)] skeleton rounded-xl" />
         <div className="relative z-10 space-y-8 mt-8">
             {[...Array(7)].map((_, rowIndex) => (
                 <div key={rowIndex}>
-                    <div className="w-1/3 h-8 mb-4 bg-zinc-800/50 rounded-md skeleton"></div>
-                    <div className="flex gap-x-2">{[...Array(7)].map((_, i) => ( <div key={i} className="flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px]"><div className="w-full aspect-video bg-zinc-800/50 rounded-md skeleton"></div></div> ))}</div>
+                    <div className="w-1/3 h-8 mb-4 bg-zinc-800/50 rounded-lg skeleton"></div>
+                    <div className="flex gap-x-2">{[...Array(7)].map((_, i) => ( <div key={i} className="flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px]"><div className="w-full aspect-video bg-zinc-800/50 rounded-lg skeleton"></div></div> ))}</div>
                 </div>
             ))}
         </div>
@@ -300,7 +301,7 @@ const TvShowsPage: React.FC = () => {
                 return (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                         {Array.from({ length: 18 }).map((_, i) => (
-                            <div key={i} className="w-full animate-pulse aspect-video bg-[var(--surface)] rounded-md"></div>
+                            <div key={i} className="w-full animate-pulse aspect-video bg-[var(--surface)] rounded-lg"></div>
                         ))}
                     </div>
                 );
@@ -330,8 +331,10 @@ const TvShowsPage: React.FC = () => {
             {loading ? (
                 <SkeletonLoader />
             ) : (
-                <div className="pt-28">
-                    <Hero />
+                <div>
+                    <div className="pt-24 px-4 md:px-10">
+                        <Hero />
+                    </div>
                     <FilterBar
                         genres={genres}
                         selectedGenre={selectedGenre}
