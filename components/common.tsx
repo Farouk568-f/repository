@@ -129,7 +129,8 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
             setLoading(true);
             try {
                 const data = await fetchFromTMDB(`/${type}/${item.id}`, {
-                    append_to_response: 'videos,credits,recommendations,content_ratings',
+                    append_to_response: 'videos,credits,recommendations,content_ratings,images',
+                    include_image_language: 'en,null',
                 });
                 setDetails(data);
                 if (type === 'tv' && data.seasons && data.seasons.length > 0) {
@@ -182,6 +183,31 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
             }));
     }, [details?.seasons, t]);
 
+    const logoUrl = useMemo(() => {
+        if (!details?.images?.logos || details.images.logos.length === 0) return null;
+        
+        const logos = details.images.logos;
+        let logo = null;
+        // Prefer PNG logos for transparency
+        logo = logos.find(l => l.iso_639_1 === 'en' && l.file_path.endsWith('.png'));
+        if (logo) return `https://image.tmdb.org/t/p/w500${logo.file_path}`;
+
+        // Fallback to any English logo
+        logo = logos.find(l => l.iso_639_1 === 'en');
+        if (logo) return `https://image.tmdb.org/t/p/w500${logo.file_path}`;
+
+        // Fallback to a language-neutral logo (TMDB sometimes uses 'zxx' or it's null)
+        logo = logos.find(l => !l.iso_639_1 || l.iso_639_1 === 'zxx');
+        if (logo) return `https://image.tmdb.org/t/p/w500${logo.file_path}`;
+        
+        // As a last resort, just grab the first logo if any exist.
+        logo = logos[0];
+        if (logo) return `https://image.tmdb.org/t/p/w500${logo.file_path}`;
+
+        return null;
+    }, [details]);
+
+
     const isFav = details ? isFavorite(details.id) : false;
 
     return ReactDOM.createPortal(
@@ -213,8 +239,16 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
                                     className="absolute inset-0 object-cover w-full h-full"
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/70 to-transparent"></div>
-                                <div className="absolute bottom-8 left-8 z-10">
-                                    <h1 className="text-4xl font-black text-white" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.7)' }}>{details.title || details.name}</h1>
+                                <div className="absolute bottom-8 left-8 z-10 max-w-[70%]">
+                                    {logoUrl ? (
+                                        <img 
+                                            src={logoUrl} 
+                                            alt={`${details.title || details.name} logo`} 
+                                            className="w-full max-w-xs md:max-w-sm max-h-36 object-contain object-left drop-shadow-lg"
+                                        />
+                                    ) : (
+                                        <h1 className="text-4xl font-black text-white" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.7)' }}>{details.title || details.name}</h1>
+                                    )}
                                     <div className="flex items-center gap-3 mt-4">
                                         <button onClick={handlePlay} className="px-6 py-2 text-lg font-bold text-black bg-white rounded-md hover:bg-opacity-80 flex items-center justify-center gap-2 btn-press">
                                             <i className="fas fa-play"></i><span>{t('play')}</span>
