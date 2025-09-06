@@ -24,7 +24,7 @@ const SimilarItemCard: React.FC<{ item: Movie, index: number }> = ({ item, index
       className="flex-shrink-0 w-32 cursor-pointer animate-fade-in-up interactive-card-sm"
       style={{ animationDelay: `${index * 50}ms` }}
     >
-      <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-md shadow-lg bg-[var(--surface)] border-2 border-transparent">
+      <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-lg shadow-lg bg-[var(--surface)] border-2 border-transparent">
         <img
           src={`${IMAGE_BASE_URL}w342${item.poster_path}`}
           srcSet={`${IMAGE_BASE_URL}w185${item.poster_path} 185w, ${IMAGE_BASE_URL}w342${item.poster_path} 342w`}
@@ -213,7 +213,7 @@ const DetailsPage: React.FC = () => {
                 <img src={`${IMAGE_BASE_URL}${POSTER_SIZE}${item.poster_path}`} 
                      srcSet={`${IMAGE_BASE_URL}w185${item.poster_path} 185w, ${IMAGE_BASE_URL}w342${item.poster_path} 342w, ${IMAGE_BASE_URL}${POSTER_SIZE}${item.poster_path} 500w`}
                      sizes="(max-width: 639px) 112px, (max-width: 767px) 144px, (max-width: 1023px) 192px, 208px"
-                     className="w-full rounded-lg shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] border-2 border-[var(--border)]" alt="poster"/>
+                     className="w-full rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] border-2 border-[var(--border)]" alt="poster"/>
             </div>
             <div className="flex-1 min-w-0 pt-16 sm:pt-24 md:pt-32">
                 <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-extrabold drop-shadow-lg text-white animate-fade-in-up" style={{animationDelay: '200ms'}}>{item.title || item.name}</h1>
@@ -240,7 +240,7 @@ const DetailsPage: React.FC = () => {
             </div>
         </div>
         
-        <div className="p-4 rounded-lg bg-[var(--surface)] animate-fade-in-up" style={{animationDelay: '500ms'}}>
+        <div className="p-4 rounded-xl bg-[var(--surface)] animate-fade-in-up" style={{animationDelay: '500ms'}}>
             <p 
                 onClick={() => setOverviewExpanded(!isOverviewExpanded)} 
                 className={`text-sm text-[var(--text-dark)] cursor-pointer transition-all duration-300 ${!isOverviewExpanded ? 'line-clamp-3' : ''}`}
@@ -276,8 +276,8 @@ const DetailsPage: React.FC = () => {
             </div>
             <div className="flex flex-col gap-3">
               {episodes.map((episode, index) => (
-                <div key={episode.id} className="flex items-center gap-4 p-2 rounded-md cursor-pointer bg-[var(--surface)] transition-colors hover:bg-[var(--surface)]/50 animate-fade-in-up" style={{ animationDelay: `${index * 40}ms` }} onClick={() => handleEpisodePlay(episode)}>
-                  <div className="relative flex-shrink-0 w-32 h-20 overflow-hidden rounded-sm">
+                <div key={episode.id} className="flex items-center gap-4 p-2 rounded-lg cursor-pointer bg-[var(--surface)] transition-colors hover:bg-[var(--surface)]/50 animate-fade-in-up" style={{ animationDelay: `${index * 40}ms` }} onClick={() => handleEpisodePlay(episode)}>
+                  <div className="relative flex-shrink-0 w-32 h-20 overflow-hidden rounded-md">
                      <img src={episode.still_path ? `${IMAGE_BASE_URL}w300${episode.still_path}` : `${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${item.backdrop_path}`} 
                           srcSet={episode.still_path ? `${IMAGE_BASE_URL}w185${episode.still_path} 185w, ${IMAGE_BASE_URL}w300${episode.still_path} 300w` : undefined}
                           sizes="128px"
@@ -307,7 +307,7 @@ const DetailsPage: React.FC = () => {
         )}
         {activeTab === 'about' && (
            <div className="space-y-4">
-                <div className="p-4 bg-[var(--surface)] rounded-lg">
+                <div className="p-4 bg-[var(--surface)] rounded-xl">
                     <h3 className="font-bold text-white mb-3 text-lg">{t('details')}</h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm text-gray-300">
                         <div><strong>{t('originalTitle')}:</strong> <span className='text-gray-400'>{item.original_title || item.original_name}</span></div>
@@ -317,7 +317,7 @@ const DetailsPage: React.FC = () => {
                     </div>
                 </div>
                 {item.production_companies && item.production_companies.length > 0 &&
-                  <div className='p-4 bg-[var(--surface)] rounded-lg'>
+                  <div className='p-4 bg-[var(--surface)] rounded-xl'>
                     <h3 className="font-bold text-white mb-3 text-lg">{t('productionCompanies')}</h3>
                     <p className='text-gray-400 text-sm'>{item.production_companies?.map(c => c.name).join(', ')}</p>
                   </div>
