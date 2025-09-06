@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import HomePage from './pages/HomePage';
@@ -10,6 +8,11 @@ import ActorDetailsPage from './pages/ActorDetailsPage';
 import SettingsPage from './pages/SettingsPage';
 import MoviesPage from './pages/MoviesPage';
 import TvShowsPage from './pages/TvShowsPage';
+import DetailsPage from './pages/DetailsPage';
+import CinemaPage from './pages/CinemaPage';
+import LiveRoomPage from './pages/LiveRoomPage';
+import ShortsPage from './pages/ShortsPage';
+import YouPage from './pages/YouPage';
 import { ProfileProvider, useProfile } from './contexts/ProfileContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { PlayerProvider } from './contexts/PlayerContext';
@@ -33,228 +36,221 @@ const GlobalModal: React.FC = () => {
     return <DetailsModal item={modalItem} onClose={() => setModalItem(null)} />;
 }
 
+// Helper for dynamic glow effect
+const colorCache = new Map<string, string>();
+const canvas = document.createElement('canvas');
+const context = canvas.getContext('2d', { willReadFrequently: true });
+canvas.width = 1;
+canvas.height = 1;
+
+const extractColorFromImage = (imageUrl: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    if (colorCache.has(imageUrl)) {
+      resolve(colorCache.get(imageUrl)!);
+      return;
+    }
+
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.src = imageUrl;
+
+    img.onload = () => {
+      if (!context) {
+        reject('Canvas context not available');
+        return;
+      }
+      context.drawImage(img, 0, 0, 1, 1);
+      const data = context.getImageData(0, 0, 1, 1).data;
+      const rgba = `rgba(${data[0]}, ${data[1]}, ${data[2]}, 0.75)`; // Increased opacity for a more prominent glow
+      colorCache.set(imageUrl, rgba);
+      resolve(rgba);
+    };
+
+    img.onerror = () => {
+      const defaultColor = 'rgba(128, 128, 128, 0.2)';
+      colorCache.set(imageUrl, defaultColor);
+      resolve(defaultColor);
+    };
+  });
+};
+
 
 const App: React.FC = () => {
-  // TV Mode State
-  const [tvModeActive] = useState(true); // Always on as requested
-  const [cursorVisible, setCursorVisible] = useState(true);
+  // Triple-enter cursor state
+  const [enterPressCount, setEnterPressCount] = useState(0);
+  const [showTvCursor, setShowTvCursor] = useState(false);
+  const enterPressTimeout = useRef<number | null>(null);
   const [cursorPosition, setCursorPosition] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const [clickEffect, setClickEffect] = useState(false);
-  const visibilityTimeout = useRef<number | null>(null);
   
-  const CURSOR_SPEED = 25;
-  const SCROLL_ZONE = 80; // px from edge to start scrolling
-  const MAX_SCROLL_SPEED = 20; // max pixels per frame
-
-  const showAndResetTimeout = useCallback(() => {
-    setCursorVisible(true);
-    if (visibilityTimeout.current) {
-        window.clearTimeout(visibilityTimeout.current);
-    }
-    // Hide after 5 seconds of inactivity
-    visibilityTimeout.current = window.setTimeout(() => {
-        setCursorVisible(false);
-    }, 5000);
-  }, []);
-
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    if (!tvModeActive) return;
+    // Handle triple-enter for cursor
+    if (e.key === 'Enter') {
+      if (enterPressTimeout.current) {
+        clearTimeout(enterPressTimeout.current);
+      }
+      const newCount = enterPressCount + 1;
+      setEnterPressCount(newCount);
 
-    // Any key press should make the cursor visible
-    showAndResetTimeout();
-    
-    // Prevent default browser behavior for keys we handle, like scrolling and actions.
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(e.key)) {
+      if (newCount === 3) {
+        setShowTvCursor(true);
+        setEnterPressCount(0);
+      } else {
+        enterPressTimeout.current = window.setTimeout(() => {
+          setEnterPressCount(0);
+        }, 500); // Reset if presses are too slow
+      }
+    }
+
+    if (showTvCursor) {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        setShowTvCursor(false);
+        // Fall through to spatial nav
+      } else if (e.key === 'Enter') {
         e.preventDefault();
+        const element = document.elementFromPoint(cursorPosition.x, cursorPosition.y);
+        setClickEffect(true);
+        setTimeout(() => setClickEffect(false), 400);
+        if (element instanceof HTMLElement) {
+          element.click();
+        }
+        return;
+      } else {
+        return; // Let other keys pass through if cursor is active
+      }
     }
 
-    switch (e.key) {
-        case 'ArrowUp':
-            setCursorPosition(prev => ({ ...prev, y: Math.max(0, prev.y - CURSOR_SPEED) }));
-            break;
-        case 'ArrowDown':
-            setCursorPosition(prev => ({ ...prev, y: Math.min(window.innerHeight - 1, prev.y + CURSOR_SPEED) }));
-            break;
-        case 'ArrowLeft':
-            setCursorPosition(prev => ({ ...prev, x: Math.max(0, prev.x - CURSOR_SPEED) }));
-            break;
+    // --- Spatial Navigation Logic ---
+    const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+    if (!arrowKeys.includes(e.key)) {
+      return;
+    }
+    e.preventDefault();
+
+    const currentElement = document.activeElement as HTMLElement;
+    
+    const modalElement = document.querySelector('.details-modal-content');
+    const navigationScope = modalElement || document;
+
+    // If nothing is focused, or the focused element is not part of our system, find the first available one.
+    if (!currentElement || !currentElement.matches('.focusable')) {
+      const firstFocusable = navigationScope.querySelector('.focusable') as HTMLElement;
+      if (firstFocusable) {
+        firstFocusable.focus();
+        firstFocusable.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      }
+      return;
+    }
+
+    const focusables = (Array.from(navigationScope.querySelectorAll('.focusable:not([disabled])')) as HTMLElement[])
+      .filter(el => {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.visibility !== 'hidden' && style.display !== 'none' && rect.width > 0 && rect.height > 0;
+      });
+    const currentRect = currentElement.getBoundingClientRect();
+
+    let bestCandidate: HTMLElement | null = null;
+    let minDistance = Infinity;
+
+    for (const candidate of focusables) {
+      if (candidate === currentElement) continue;
+
+      const candidateRect = candidate.getBoundingClientRect();
+      const dx = (candidateRect.left + candidateRect.width / 2) - (currentRect.left + currentRect.width / 2);
+      const dy = (candidateRect.top + candidateRect.height / 2) - (currentRect.top + currentRect.height / 2);
+
+      let isValidCandidate = false;
+      let distance = Infinity;
+
+      // Basic direction check
+      switch (e.key) {
         case 'ArrowRight':
-            setCursorPosition(prev => ({ ...prev, x: Math.min(window.innerWidth - 1, prev.x + CURSOR_SPEED) }));
-            break;
-        case 'Escape':
-        case 'Backspace': // Common key for "Back" on many TV remotes
-        case 'Back': { // W3C standard for "Back" key
-            const activeEl = document.activeElement;
-            // If an input is focused, blur it to exit "typing mode" and prevent default navigation.
-            if (activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement) {
-                e.preventDefault();
-                activeEl.blur();
-            } else if (e.key === 'Escape') {
-                // Preserve original behavior of preventing default for Escape even when not in an input.
-                e.preventDefault();
-            }
-            // If 'Backspace' or 'Back' is pressed and no input is focused, default action (navigation) is allowed.
-            break;
+          if (dx > 0) isValidCandidate = true;
+          break;
+        case 'ArrowLeft':
+          if (dx < 0) isValidCandidate = true;
+          break;
+        case 'ArrowDown':
+          if (dy > 0) isValidCandidate = true;
+          break;
+        case 'ArrowUp':
+          if (dy < 0) isValidCandidate = true;
+          break;
+      }
+
+      if (isValidCandidate) {
+        // Penalize movement perpendicular to the desired direction
+        distance = Math.sqrt(dx * dx + dy * dy);
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            distance += Math.abs(dy) * 2.5; // Increase vertical penalty on horizontal moves to prevent row jumping
+        } else {
+            distance += Math.abs(dx) * 1.5; // Decrease horizontal penalty on vertical moves to reach corners
         }
-        case 'Enter': {
-            // Temporarily hide the cursor to not interfere with elementFromPoint
-            setCursorVisible(false);
-            const element = document.elementFromPoint(cursorPosition.x, cursorPosition.y);
-            setCursorVisible(true); // Show it back immediately
 
-            if (!element) break;
-            
-            const activeEl = document.activeElement;
-
-            // If a text input is currently focused and the user clicks on something else,
-            // blur the input field first. This exits "typing mode" automatically.
-            if (
-                (activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement) &&
-                activeEl !== element
-            ) {
-                activeEl.blur();
-            }
-
-            // Trigger click effect animation
-            setClickEffect(true);
-            setTimeout(() => setClickEffect(false), 400);
-
-            if (element instanceof HTMLInputElement ||
-                element instanceof HTMLTextAreaElement ||
-                (element instanceof HTMLElement && element.isContentEditable)) {
-                element.focus();
-            } else if (element instanceof HTMLElement) {
-                element.click();
-            }
-            break;
+        if (distance < minDistance) {
+          minDistance = distance;
+          bestCandidate = candidate;
         }
-        default:
-            break;
+      }
     }
-  }, [tvModeActive, cursorPosition.x, cursorPosition.y, showAndResetTimeout]);
-  
-  // Ref for cursor position to be used in animation frame without causing re-renders
-  const cursorPositionRef = useRef(cursorPosition);
-  useEffect(() => {
-    cursorPositionRef.current = cursorPosition;
-  }, [cursorPosition]);
 
-  // Main effect for keyboard listening
+    if (bestCandidate) {
+      bestCandidate.focus();
+      bestCandidate.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+  }, [enterPressCount, showTvCursor, cursorPosition.x, cursorPosition.y]);
+
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
-    showAndResetTimeout(); // Show cursor on initial mount
-
-    return () => {
-        window.removeEventListener('keydown', handleKeyDown);
-        if (visibilityTimeout.current) {
-            window.clearTimeout(visibilityTimeout.current);
-        }
-    };
-  }, [handleKeyDown, showAndResetTimeout]);
-
-  // Effect for auto-scrolling
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleKeyDown]);
+  
   useEffect(() => {
-    let animationFrameId: number;
-    
-    const scrollLoop = () => {
-        if (!tvModeActive || !cursorVisible) {
-            animationFrameId = requestAnimationFrame(scrollLoop);
+    const handleFocusIn = async (e: FocusEvent) => {
+        const target = e.target as HTMLElement;
+        const focusableCard = target.closest('.focusable');
+
+        if (!focusableCard || !focusableCard.querySelector('img')) {
+            document.body.classList.remove('glow-active');
             return;
         }
 
-        const pos = cursorPositionRef.current;
-        let yTarget: Element | Window = window;
-        let xTarget: Element | null = null;
-        
-        let element = document.elementFromPoint(pos.x, pos.y);
-        
-        // Find the most specific scroll containers for X and Y
-        while (element) {
-            if (element === document.body || element === document.documentElement) break;
-            
-            const style = window.getComputedStyle(element);
-            
-            if (!xTarget) {
-                const isScrollableX = style.overflowX === 'auto' || style.overflowX === 'scroll';
-                if (isScrollableX && element.scrollWidth > element.clientWidth) {
-                    xTarget = element;
-                }
-            }
-
-            if (yTarget === window) {
-                const isScrollableY = style.overflowY === 'auto' || style.overflowY === 'scroll';
-                if (isScrollableY && element.scrollHeight > element.clientHeight) {
-                    yTarget = element;
-                }
-            }
-            
-            // Optimization: if we found both specific targets, we can stop traversing.
-            if (xTarget && yTarget !== window) break;
-
-            element = element.parentElement;
-        }
-
-        // --- VERTICAL SCROLL ---
-        const vRect = yTarget === window ? { top: 0, bottom: window.innerHeight } : (yTarget as Element).getBoundingClientRect();
-        const vDistanceToBottom = vRect.bottom - pos.y;
-        const vDistanceToTop = pos.y - vRect.top;
-        let scrollY = 0;
-
-        if (pos.y >= vRect.top && pos.y <= vRect.bottom) {
-            if (vDistanceToBottom < SCROLL_ZONE) {
-                const speedFactor = (SCROLL_ZONE - vDistanceToBottom) / SCROLL_ZONE;
-                scrollY = speedFactor * MAX_SCROLL_SPEED;
-            } else if (vDistanceToTop < SCROLL_ZONE) {
-                const speedFactor = (SCROLL_ZONE - vDistanceToTop) / SCROLL_ZONE;
-                scrollY = -speedFactor * MAX_SCROLL_SPEED;
+        const img = focusableCard.querySelector('img');
+        if (img && img.src) {
+            try {
+                const color = await extractColorFromImage(img.src);
+                const rect = focusableCard.getBoundingClientRect();
+                
+                document.documentElement.style.setProperty('--glow-x', `${rect.left + rect.width / 2}px`);
+                document.documentElement.style.setProperty('--glow-y', `${rect.top + rect.height / 2}px`);
+                document.documentElement.style.setProperty('--glow-color', color);
+                
+                document.body.classList.add('glow-active');
+            } catch (error) {
+                console.error('Error setting glow:', error);
+                document.body.classList.remove('glow-active');
             }
         }
-        
-        if (scrollY !== 0) {
-            if (yTarget === window) {
-                (yTarget as Window).scrollBy(0, scrollY);
-            } else {
-                (yTarget as Element).scrollTop += scrollY;
-            }
-        }
-        
-        // --- HORIZONTAL SCROLL ---
-        if (xTarget) {
-            const hRect = xTarget.getBoundingClientRect();
-            const hDistanceToRight = hRect.right - pos.x;
-            const hDistanceToLeft = pos.x - hRect.left;
-            let scrollX = 0;
-
-            if (pos.x >= hRect.left && pos.x <= hRect.right && pos.y >= hRect.top && pos.y <= hRect.bottom) {
-                if (hDistanceToRight < SCROLL_ZONE) {
-                    const speedFactor = (SCROLL_ZONE - hDistanceToRight) / SCROLL_ZONE;
-                    scrollX = speedFactor * MAX_SCROLL_SPEED;
-                } else if (hDistanceToLeft < SCROLL_ZONE) {
-                    const speedFactor = (SCROLL_ZONE - hDistanceToLeft) / SCROLL_ZONE;
-                    scrollX = -speedFactor * MAX_SCROLL_SPEED;
-                }
-            }
-            
-            if (scrollX !== 0) {
-                xTarget.scrollLeft += scrollX;
-            }
-        }
-
-        animationFrameId = requestAnimationFrame(scrollLoop);
     };
-    
-    animationFrameId = requestAnimationFrame(scrollLoop);
-    
+
+    const handleFocusOut = () => {
+        document.body.classList.remove('glow-active');
+    };
+
+    document.body.addEventListener('focusin', handleFocusIn);
+    document.body.addEventListener('focusout', handleFocusOut);
+
     return () => {
-        cancelAnimationFrame(animationFrameId);
+        document.body.removeEventListener('focusin', handleFocusIn);
+        document.body.removeEventListener('focusout', handleFocusOut);
     };
-  }, [tvModeActive, cursorVisible]);
+  }, []);
 
-  return (
+  return ( 
     <LanguageProvider>
       <ProfileProvider>
-        {/* Render TV Cursor on top of everything */}
-        {tvModeActive && <TVCursor position={cursorPosition} visible={cursorVisible} clickEffect={clickEffect} />}
+        {showTvCursor && <TVCursor position={cursorPosition} visible={true} clickEffect={clickEffect} />}
         <HashRouter>
           <PlayerProvider>
             <Routes>
@@ -268,6 +264,11 @@ const App: React.FC = () => {
               <Route path="/search" element={<GenericPageWrapper pageType="search" />} />
               <Route path="/all/:category" element={<GenericPageWrapper pageType="all" />} />
               <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/details/:type/:id" element={<DetailsPage />} />
+              <Route path="/cinema" element={<CinemaPage />} />
+              <Route path="/live/:type/:id" element={<LiveRoomPage />} />
+              <Route path="/shorts" element={<ShortsPage />} />
+              <Route path="/you" element={<YouPage />} />
             </Routes>
             <PipPlayer />
             <GlobalModal />
