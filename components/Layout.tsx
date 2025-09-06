@@ -1,4 +1,3 @@
-// FIX: Import useEffect from React.
 import React, { useEffect } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useProfile } from '../contexts/ProfileContext';
@@ -17,10 +16,15 @@ const TopNavbar: React.FC = () => {
   ];
 
   return (
-    <header className={`fixed top-0 left-0 right-0 z-50 flex items-center h-20 px-4 md:px-10 transition-colors duration-300`}>
+    <header className={`absolute top-0 w-full z-40 flex items-center h-20 px-4 md:px-10 bg-transparent`}>
       {/* Left Side: Avatar */}
       <div className="flex-shrink-0">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={switchProfile}>
+        <div 
+            className="flex items-center gap-2 cursor-pointer focusable rounded-full p-1" 
+            onClick={switchProfile}
+            onKeyDown={(e) => e.key === 'Enter' && switchProfile()}
+            tabIndex={0}
+        >
           {activeProfile && (
             <img src={activeProfile.avatar} alt={activeProfile.name} className="w-9 h-9 rounded-md object-cover" />
           )}
@@ -31,15 +35,16 @@ const TopNavbar: React.FC = () => {
       {/* Center: Search + Nav */}
       <div className="flex-1 flex justify-center items-center">
         <nav className="hidden md:flex items-center gap-6 text-base">
-          <button onClick={() => navigate('/search')} aria-label={t('search')} className="text-2xl text-zinc-100 hover:text-white transition-colors">
+          <button onClick={() => navigate('/search')} aria-label={t('search')} className="text-2xl text-zinc-100 hover:text-white transition-colors focusable rounded-full w-12 h-12 flex items-center justify-center">
             <i className="fas fa-search"></i>
           </button>
           {navLinks.map(link => (
             <NavLink
               key={link.text}
               to={link.to}
+              tabIndex={0}
               className={({ isActive }) =>
-                `transition-all duration-200 py-2 px-4 rounded-full ${isActive ? 'text-black bg-white font-semibold' : 'text-zinc-300 hover:text-white'}`
+                `transition-all duration-200 py-2 px-4 rounded-full focusable ${isActive ? 'text-black bg-white font-semibold' : 'text-zinc-300 hover:text-white'}`
               }
             >
               {link.text}
@@ -85,7 +90,6 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     return null; 
   }
 
-  const noPaddingTop = ['/home', '/movies', '/tv'].includes(location.pathname);
   const noLayout = location.pathname.startsWith('/player');
 
   if (noLayout) {
@@ -95,7 +99,7 @@ const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   return (
     <div className="min-h-screen text-[var(--text-light)] bg-transparent transition-colors duration-300">
       <TopNavbar />
-      <main key={location.pathname} className={`pb-12 ${!noPaddingTop ? 'pt-24' : ''}`}>
+      <main key={location.pathname} className={`pb-12`}>
         {children}
       </main>
     </div>
