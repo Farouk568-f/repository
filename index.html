@@ -180,7 +180,7 @@
         max-width: 850px;
         height: 90vh;
         background-color: var(--background);
-        border-radius: 0.375rem;
+        border-radius: 0.75rem;
         overflow: hidden;
         display: flex;
         flex-direction: column;
@@ -245,6 +245,60 @@
         from { opacity: 0; }
         to { opacity: 1; }
       }
+      
+      /* TV Glow Effect */
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+        /* Increased size and softened gradient for a more prominent glow */
+        background: radial-gradient(
+            380px circle at var(--glow-x, 50%) var(--glow-y, 50%),
+            var(--glow-color, transparent) 0%,
+            transparent 70%
+        );
+        opacity: 0;
+        transition: opacity 0.5s cubic-bezier(0.25, 1, 0.5, 1);
+      }
+      body.glow-active::before {
+        opacity: 1;
+      }
+      
+      #root {
+        position: relative;
+        z-index: 1;
+      }
+
+      /* TV Remote Navigation Focus Styles */
+      .focusable {
+        transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+        border-radius: 4px; /* Helps with outline visuals */
+      }
+      /* Default focus for buttons and menu items - now with a thinner border. */
+      .focusable:focus-visible {
+        outline: 1px solid rgba(255, 255, 255, 0.9) !important;
+        outline-offset: 2px;
+        transform: scale(1.05);
+        z-index: 30;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      }
+      /* Special case to remove outline from the profile avatar button in the header. */
+      header .flex-shrink-0:first-child .focusable:focus-visible {
+        outline: none !important;
+        box-shadow: none;
+      }
+      /* Override for cards to use the glow effect. They will inherit the thin outline. */
+      div.focusable:has(img):focus-visible {
+        transform: scale(1.05); 
+        box-shadow: none; 
+        z-index: 30; /* Ensure it's on top of other elements */
+      }
+      /* Prevent scaling on Top 10 cards on focus */
+      div.focusable.top-ten-card-focusable:focus-visible {
+        transform: scale(1);
+      }
     </style>
   <script type="importmap">
 {
@@ -255,7 +309,10 @@
     "react/": "https://esm.sh/react@^19.1.1/",
     "react": "https://esm.sh/react@^19.1.1",
     "@google/genai": "https://esm.sh/@google/genai",
-    "react-dom": "https://aistudiocdn.com/react-dom@^19.1.1"
+    "react-dom": "https://aistudiocdn.com/react-dom@^19.1.1",
+    "vite": "https://aistudiocdn.com/vite@^7.1.4",
+    "path": "https://aistudiocdn.com/path@^0.12.7",
+    "url": "https://aistudiocdn.com/url@^0.11.4"
   }
 }
 </script>
