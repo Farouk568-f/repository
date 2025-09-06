@@ -65,7 +65,12 @@ const RecommendationCard: React.FC<{ item: Movie }> = ({ item }) => {
     if (!item.backdrop_path) return null;
 
     return (
-        <div className="bg-[var(--surface)] rounded-sm overflow-hidden cursor-pointer group shadow-lg" onClick={handleCardClick}>
+        <div 
+            className="bg-[var(--surface)] rounded-xl overflow-hidden cursor-pointer group shadow-lg focusable" 
+            onClick={handleCardClick}
+            onKeyDown={(e) => e.key === 'Enter' && handleCardClick()}
+            tabIndex={0}
+        >
             <div className="relative">
                 <img
                     src={`${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${item.backdrop_path}`}
@@ -86,7 +91,7 @@ const RecommendationCard: React.FC<{ item: Movie }> = ({ item }) => {
                         </div>
                         <span className='px-1.5 py-0.5 border border-white/50 text-[10px] rounded'>HD</span>
                     </div>
-                    <button onClick={handleAddToList} className="w-9 h-9 flex-shrink-0 flex items-center justify-center text-white border-2 border-zinc-500 rounded-full text-sm btn-press hover:border-white"><i className="fas fa-plus"></i></button>
+                    <button onClick={handleAddToList} className="w-9 h-9 flex-shrink-0 flex items-center justify-center text-white border-2 border-zinc-500 rounded-full text-sm btn-press focusable hover:border-white"><i className="fas fa-plus"></i></button>
                 </div>
                 <p className="text-xs text-zinc-300 mt-3 line-clamp-3 leading-relaxed">{item.overview}</p>
             </div>
@@ -105,14 +110,68 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
     const [animationState, setAnimationState] = useState<'entering' | 'exiting' | 'visible'>('entering');
     const [isExpanded, setIsExpanded] = useState(false);
 
+    const modalRef = useRef<HTMLDivElement>(null);
+    const playButtonRef = useRef<HTMLButtonElement>(null);
+    const episodeListRef = useRef<HTMLDivElement>(null);
+
     const type = item.media_type || (item.title ? 'movie' : 'tv');
 
     useEffect(() => {
+        const expandTimer = setTimeout(() => {
+            setIsExpanded(true);
+        }, 3000);
+
+        return () => clearTimeout(expandTimer);
+    }, []);
+
+    useEffect(() => {
         document.body.classList.add('modal-open');
+        playButtonRef.current?.focus();
         return () => {
             document.body.classList.remove('modal-open');
         };
-    }, []);
+    }, [details]);
+    
+    useEffect(() => {
+        const modalNode = modalRef.current;
+        if (!modalNode || !details) return;
+
+        const focusableElements = Array.from(
+            modalNode.querySelectorAll(
+                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            )
+        ).filter(
+            el => !el.hasAttribute('disabled') && (el as HTMLElement).offsetParent !== null
+        ) as HTMLElement[];
+        
+        if (focusableElements.length === 0) return;
+
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== 'Tab') return;
+
+            if (e.shiftKey) { 
+                if (document.activeElement === firstElement) {
+                    e.preventDefault();
+                    lastElement.focus();
+                }
+            } else { 
+                if (document.activeElement === lastElement) {
+                    e.preventDefault();
+                    firstElement.focus();
+                }
+            }
+        };
+
+        modalNode.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            modalNode.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [details]);
+
 
     const handleClose = useCallback(() => {
         setAnimationState('exiting');
@@ -210,12 +269,38 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
 
     const isFav = details ? isFavorite(details.id) : false;
 
+    const handleEpisodeKeyDown = (e: React.KeyboardEvent, episode: Episode) => {
+        if (e.key === 'Enter') handleEpisodePlay(episode);
+        
+        // Custom logic for right arrow to exit episode list
+        if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            const similarSection = document.getElementById('similar-section');
+            if (similarSection) {
+                 const firstSimilarCard = similarSection.querySelector('.focusable') as HTMLElement;
+                 if (firstSimilarCard) {
+                     firstSimilarCard.focus();
+                 }
+            }
+            
+            if(episodeListRef.current) {
+                episodeListRef.current.scrollTop = 0;
+            }
+        }
+    };
+
+
     return ReactDOM.createPortal(
         <div className={`details-modal-backdrop ${animationState === 'exiting' ? 'exiting' : ''}`} onClick={handleClose}>
             <div
+                ref={modalRef}
                 className={`details-modal-content ${isExpanded ? 'expanded' : ''} ${animationState === 'exiting' ? 'exiting' : ''}`}
                 onClick={(e) => e.stopPropagation()}
                 onAnimationEnd={handleAnimationEnd}
+                role="dialog"
+                aria-modal="true"
             >
                 {loading || !details ? (
                     <div className="flex items-center justify-center h-full bg-[var(--background)]">
@@ -224,11 +309,11 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
                 ) : (
                     <>
                         <div className="absolute top-4 right-4 z-20 flex gap-2">
-                           <button onClick={() => setIsExpanded(!isExpanded)} className="w-9 h-9 flex items-center justify-center bg-black/60 rounded-full text-white text-lg btn-press">
-                                <i className={`fas ${isExpanded ? 'fa-compress' : 'fa-expand'}`}></i>
+                           <button onClick={() => setIsExpanded(!isExpanded)} className="w-9 h-9 flex items-center justify-center bg-black/60 rounded-full text-white text-lg btn-press focusable">
+                                <i className={`fas ${isExpanded ? 'fa-compress' : 'fa-expand'} pointer-events-none`}></i>
                             </button>
-                            <button onClick={handleClose} className="w-9 h-9 flex items-center justify-center bg-black/60 rounded-full text-white text-xl btn-press">
-                                <i className="fas fa-times"></i>
+                            <button onClick={handleClose} className="w-9 h-9 flex items-center justify-center bg-black/60 rounded-full text-white text-xl btn-press focusable">
+                                <i className="fas fa-times pointer-events-none"></i>
                             </button>
                         </div>
                         <div className="w-full h-full overflow-y-auto no-scrollbar">
@@ -250,13 +335,13 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
                                         <h1 className="text-4xl font-black text-white" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.7)' }}>{details.title || details.name}</h1>
                                     )}
                                     <div className="flex items-center gap-3 mt-4">
-                                        <button onClick={handlePlay} className="px-6 py-2 text-lg font-bold text-black bg-white rounded-md hover:bg-opacity-80 flex items-center justify-center gap-2 btn-press">
+                                        <button ref={playButtonRef} onClick={handlePlay} className="px-6 py-2 text-lg font-bold text-black bg-white rounded-md hover:bg-opacity-80 flex items-center justify-center gap-2 btn-press focusable">
                                             <i className="fas fa-play"></i><span>{t('play')}</span>
                                         </button>
-                                        <button onClick={() => toggleFavorite(details)} className={`w-11 h-11 flex items-center justify-center rounded-full border-2 border-zinc-400 text-white text-xl btn-press hover:border-white`}>
+                                        <button onClick={() => toggleFavorite(details)} className={`w-11 h-11 flex items-center justify-center rounded-full border-2 border-zinc-400 text-white text-xl btn-press hover:border-white focusable`}>
                                             <i className={`fas ${isFav ? 'fa-check' : 'fa-plus'}`}></i>
                                         </button>
-                                        <button className="w-11 h-11 flex items-center justify-center rounded-full border-2 border-zinc-400 text-white text-xl btn-press hover:border-white">
+                                        <button className="w-11 h-11 flex items-center justify-center rounded-full border-2 border-zinc-400 text-white text-xl btn-press hover:border-white focusable">
                                             <i className="far fa-thumbs-up"></i>
                                         </button>
                                     </div>
@@ -295,17 +380,23 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
                                                 className="w-48"
                                             />
                                         </div>
-                                        <div className="flex flex-col gap-4 max-h-80 overflow-y-auto pr-2">
+                                        <div ref={episodeListRef} className="flex flex-col gap-4 max-h-80 overflow-y-auto pr-2">
                                         {episodes.map((episode) => (
-                                            <div key={episode.id} className="flex items-center gap-4 p-2 rounded-md cursor-pointer hover:bg-zinc-800" onClick={() => handleEpisodePlay(episode)}>
-                                            <span className="text-xl text-zinc-400 font-bold">{episode.episode_number}</span>
-                                            <div className="relative flex-shrink-0 w-36 h-20 overflow-hidden rounded-sm">
-                                                <img src={episode.still_path ? `${IMAGE_BASE_URL}w300${episode.still_path}` : `${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${details.backdrop_path}`} alt={episode.name} className="object-cover w-full h-full" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <h4 className="font-semibold text-sm">{episode.name}</h4>
-                                                <p className="text-xs text-zinc-400 line-clamp-2 mt-1">{episode.overview}</p>
-                                            </div>
+                                            <div 
+                                                key={episode.id} 
+                                                className="flex items-center gap-4 p-2 rounded-xl cursor-pointer hover:bg-zinc-800 focusable" 
+                                                onClick={() => handleEpisodePlay(episode)}
+                                                onKeyDown={(e) => handleEpisodeKeyDown(e, episode)}
+                                                tabIndex={0}
+                                            >
+                                                <span className="text-xl text-zinc-400 font-bold">{episode.episode_number}</span>
+                                                <div className="relative flex-shrink-0 w-36 h-20 overflow-hidden rounded-md">
+                                                    <img src={episode.still_path ? `${IMAGE_BASE_URL}w300${episode.still_path}` : `${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${details.backdrop_path}`} alt={episode.name} className="object-cover w-full h-full" />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className="font-semibold text-sm">{episode.name}</h4>
+                                                    <p className="text-xs text-zinc-400 line-clamp-2 mt-1">{episode.overview}</p>
+                                                </div>
                                             </div>
                                         ))}
                                         </div>
@@ -313,8 +404,8 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
                                 )}
 
                                 {details.recommendations?.results && details.recommendations.results.length > 0 && (
-                                    <div className="mt-10">
-                                        <h2 className="text-2xl font-bold mb-4">{t('similar')}</h2>
+                                    <div className="mt-10" id="similar-section">
+                                        <h2 className="text-2xl font-bold mb-4 focusable" tabIndex={-1}>{t('similar')}</h2>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                             {details.recommendations.results.filter(r => r.backdrop_path).slice(0, 9).map(rec => (
                                                 <RecommendationCard key={rec.id} item={rec} />
@@ -354,7 +445,8 @@ export const TVCursor: React.FC<{
     pointerEvents: 'none',
     zIndex: 99999,
     mixBlendMode: 'difference',
-    transition: 'transform 0.05s linear, border-color 0.2s',
+    transition: 'transform 0.05s linear, border-color 0.2s, opacity 0.3s',
+    opacity: visible ? 1 : 0,
   };
   
   const rippleStyle: React.CSSProperties = {
@@ -385,12 +477,20 @@ export const CustomSelect: React.FC<{
 }> = ({ options, value, onChange, placeholder, className = '' }) => {
     const [isOpen, setIsOpen] = useState(false);
     const selectRef = useRef<HTMLDivElement>(null);
+    const optionsRef = useRef<(HTMLLIElement | null)[]>([]);
     const selectedLabel = options.find(opt => opt.value === value)?.label || placeholder;
 
     const handleSelect = (newValue: string) => {
         onChange(newValue);
         setIsOpen(false);
     };
+
+    // Return focus to button after closing
+    useEffect(() => {
+        if (!isOpen) {
+            selectRef.current?.querySelector('button')?.focus();
+        }
+    }, [isOpen]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -402,29 +502,63 @@ export const CustomSelect: React.FC<{
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    const handleButtonKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+        if (['Enter', ' ', 'ArrowDown'].includes(e.key)) {
+            e.preventDefault();
+            setIsOpen(true);
+            setTimeout(() => {
+                const selectedIndex = options.findIndex(opt => opt.value === value);
+                const focusIndex = selectedIndex >= 0 ? selectedIndex : 0;
+                optionsRef.current[focusIndex]?.focus();
+            }, 50); // Small delay for render
+        }
+    };
+    
+    const handleOptionKeyDown = (e: React.KeyboardEvent<HTMLLIElement>, optionValue: string) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleSelect(optionValue);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            setIsOpen(false);
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const current = e.currentTarget;
+            const next = current.nextElementSibling as HTMLLIElement;
+            if(next) next.focus();
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const current = e.currentTarget;
+            const prev = current.previousElementSibling as HTMLLIElement;
+            if(prev) prev.focus();
+        }
+    };
+
     return (
         <div className={`relative ${className}`} ref={selectRef}>
             <button
                 onClick={() => setIsOpen(!isOpen)}
-                className="bg-[var(--surface)] border border-[var(--border)] text-white text-sm rounded-md focus:ring-[var(--primary)] focus:border-[var(--primary)] w-full p-2.5 flex justify-between items-center"
+                onKeyDown={handleButtonKeyDown}
+                className="bg-[var(--surface)] border border-[var(--border)] text-white text-sm rounded-md focus:ring-[var(--primary)] focus:border-[var(--primary)] w-full p-2.5 flex justify-between items-center focusable"
+                aria-haspopup="listbox"
+                aria-expanded={isOpen}
             >
                 <span>{selectedLabel}</span>
                 <i className={`fas fa-chevron-down transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}></i>
             </button>
             {isOpen && (
                 <div className="absolute z-10 top-full mt-1 w-full bg-[var(--surface)] border border-[var(--border)] rounded-md shadow-lg max-h-60 overflow-y-auto">
-                    <ul>
-                        <li
-                            className={`p-2.5 text-sm cursor-pointer hover:bg-[var(--primary)] ${!value ? 'bg-[var(--primary)]/50' : ''}`}
-                            onClick={() => handleSelect('')}
-                        >
-                            {placeholder}
-                        </li>
-                        {options.map(option => (
+                    <ul role="listbox">
+                        {options.map((option, index) => (
                             <li
                                 key={option.value}
+                                ref={el => { if(el) optionsRef.current[index] = el}}
                                 onClick={() => handleSelect(option.value)}
-                                className={`p-2.5 text-sm cursor-pointer hover:bg-[var(--primary)] ${value === option.value ? 'bg-[var(--primary)]/50' : ''}`}
+                                onKeyDown={(e) => handleOptionKeyDown(e, option.value)}
+                                tabIndex={0}
+                                role="option"
+                                aria-selected={value === option.value}
+                                className={`p-2.5 text-sm cursor-pointer hover:bg-[var(--primary)] focus:bg-[var(--primary)] focus:outline-none focusable ${value === option.value ? 'bg-[var(--primary)]/50' : ''}`}
                             >
                                 {option.label}
                             </li>
