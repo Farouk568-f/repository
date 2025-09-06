@@ -195,16 +195,19 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
 
   return (
     <div 
-        className="interactive-card-container flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px] cursor-pointer"
+        className="interactive-card-container flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px] cursor-pointer focusable"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        data-movie-id={movie.id} // Add a data attribute for the hover check
+        data-movie-id={movie.id}
+        tabIndex={0}
+        onClick={() => onCardClick(movie)}
+        onKeyDown={(e) => e.key === 'Enter' && onCardClick(movie)}
     >
-      <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-sm shadow-lg bg-[var(--surface)] interactive-card">
+      <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-lg shadow-lg bg-[var(--surface)] interactive-card">
         {isNetflixOriginal && (
             <span style={{ fontFamily: "'Anton', sans-serif", textShadow: '1px 1px 3px rgba(0,0,0,0.5)' }} className="absolute top-2 left-2 z-10 text-3xl font-black text-[var(--primary)] pointer-events-none">N</span>
         )}
-        <div className="relative w-full aspect-video bg-black" onClick={() => onCardClick(movie)}>
+        <div className="relative w-full aspect-video bg-black">
             <img
               src={`${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${movie.backdrop_path}`}
               alt={movie.title || movie.name}
@@ -275,7 +278,7 @@ const ContentRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie
                 <h2 className="text-lg md:text-xl font-bold text-white">{title}</h2>
             </div>
             <div className="overflow-x-auto no-scrollbar py-32 -my-32">
-                <div className="flex flex-nowrap gap-x-2">
+                <div className="flex flex-nowrap gap-x-6">
                     {movies.map(movie => <PosterCard key={`${category || 'carousel'}-${movie.id}`} movie={movie} onCardClick={onCardClick} isNetflixOriginal={isNetflixRow} isRecentlyAdded={isRecentlyAddedRow} />)}
                 </div>
             </div>
@@ -287,8 +290,10 @@ const SimpleBackdropCard: React.FC<{ movie: Movie; onCardClick: (movie: Movie) =
     if (!movie.backdrop_path) return null;
     return (
         <div 
-            className="flex-shrink-0 w-[24vw] sm:w-[18vw] min-w-[200px] max-w-[280px] cursor-pointer group"
+            className="flex-shrink-0 w-[24vw] sm:w-[18vw] min-w-[200px] max-w-[280px] cursor-pointer group focusable"
             onClick={() => onCardClick(movie)}
+            onKeyDown={(e) => e.key === 'Enter' && onCardClick(movie)}
+            tabIndex={0}
         >
             <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-md shadow-lg bg-[var(--surface)] group-hover:scale-105 group-hover:shadow-2xl">
                 <img
@@ -309,7 +314,7 @@ const SimpleContentRow: React.FC<{ movies: Movie[]; onCardClick: (movie: Movie) 
     if (!movies || movies.length === 0) return null;
     return (
         <div className="overflow-x-auto no-scrollbar">
-            <div className="flex flex-nowrap gap-x-2">
+            <div className="flex flex-nowrap gap-x-6">
                 {movies.map(movie => <SimpleBackdropCard key={`simple-${movie.id}`} movie={movie} onCardClick={onCardClick} />)}
             </div>
         </div>
@@ -331,11 +336,16 @@ const TopTenCard: React.FC<{ movie: Movie; rank: number; onCardClick: (movie: Mo
       >
         {rank}
       </span>
-      <div className="w-36 flex-shrink-0 relative transition-transform duration-300 transform group-hover:scale-105">
+      <div 
+        className="w-36 flex-shrink-0 relative transition-transform duration-300 transform focusable top-ten-card-focusable"
+        onClick={(e) => { e.stopPropagation(); onCardClick(movie); }}
+        onKeyDown={(e) => e.key === 'Enter' && onCardClick(movie)}
+        tabIndex={0}
+      >
         <img
           src={`${IMAGE_BASE_URL}${POSTER_SIZE}${movie.poster_path}`}
           alt={movie.title || movie.name}
-          className="w-full aspect-[2/3] object-cover rounded-md shadow-lg"
+          className="w-full aspect-[2/3] object-cover rounded-lg shadow-lg"
           loading="lazy"
         />
       </div>
@@ -351,7 +361,7 @@ const TopTenRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie:
                 <h2 className="text-lg md:text-xl font-bold text-white">{title}</h2>
             </div>
             <div className="overflow-x-auto no-scrollbar py-2">
-                <div className="flex flex-nowrap items-center gap-x-0">
+                <div className="flex flex-nowrap items-center gap-x-6">
                     {movies.map((movie, index) => (
                         <TopTenCard key={`top10-${movie.id}`} movie={movie} rank={index + 1} onCardClick={onCardClick} />
                     ))}
@@ -363,16 +373,16 @@ const TopTenRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie:
 
 
 const SkeletonLoader: React.FC = () => (
-    <div className="px-4 md:px-10 pt-24">
+    <div className="px-4 md:px-10">
         <div className="relative w-full h-[70vh] min-h-[500px] bg-[var(--surface)] skeleton rounded-xl" />
         <div className="relative z-10 space-y-8 mt-8">
             {[...Array(9)].map((_, rowIndex) => (
                 <div key={rowIndex}>
-                    <div className="w-1/3 h-8 mb-4 bg-zinc-800/50 rounded-md skeleton"></div>
+                    <div className="w-1/3 h-8 mb-4 bg-zinc-800/50 rounded-lg skeleton"></div>
                     <div className="flex gap-x-2">
                         {[...Array(7)].map((_, i) => (
                             <div key={i} className="flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px]">
-                                <div className="w-full aspect-video bg-zinc-800/50 rounded-md skeleton"></div>
+                                <div className="w-full aspect-video bg-zinc-800/50 rounded-lg skeleton"></div>
                             </div>
                         ))}
                     </div>
@@ -496,7 +506,7 @@ const HomePage: React.FC = () => {
       {loading ? (
         <SkeletonLoader />
       ) : (
-        <div className="px-4 md:px-10 pt-28">
+        <div className="px-4 md:px-10 pt-24">
           {isKidsMode ? (
             <>
                 <Hero movie={data.hero} isKids={isKidsMode} />
@@ -513,8 +523,12 @@ const HomePage: React.FC = () => {
                 <Hero movie={data.hero} isKids={isKidsMode} />
                 <div className="relative z-10 mt-12 space-y-6">
                   <div>
-                    <h2 className="text-xl font-bold text-white mb-3">{t('yourNextWatch')}</h2>
-                    <SimpleContentRow movies={(data.watchTogetherKids || []).slice(0, 6)} onCardClick={handleOpenModal} />
+                    <h2 className="text-lg md:text-xl font-bold text-white mb-3">{t('yourNextWatch')}</h2>
+                    <div className="overflow-x-auto no-scrollbar py-32 -my-32">
+                        <div className="flex flex-nowrap gap-x-6">
+                            {(data.watchTogetherKids || []).slice(0, 10).map((movie: Movie) => <PosterCard key={`your_next_watch-${movie.id}`} movie={movie} onCardClick={handleOpenModal} />)}
+                        </div>
+                    </div>
                   </div>
                   <ContentRow title={t('tvDramas')} movies={data.tvDramas} onCardClick={handleOpenModal} category="tv_dramas" zIndex={11} />
                   {data.continueWatching?.length > 0 && <ContentRow title={t('continueWatching')} movies={data.continueWatching} onCardClick={handleOpenModal} category="continue_watching" zIndex={10} />}
