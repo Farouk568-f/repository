@@ -29,6 +29,12 @@ export interface Movie {
   number_of_episodes?: number;
   currentTime?: number;
   duration?: number;
+  images?: {
+    logos: {
+      file_path: string;
+      iso_639_1: string;
+    }[];
+  };
 }
 
 export interface Actor {
