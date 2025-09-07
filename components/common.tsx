@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useProfile } from '../contexts/ProfileContext';
 import { fetchFromTMDB } from '../services/apiService';
-import { Movie, Episode, Season } from '../types';
+import { Movie, Episode, Season, YTPlayer } from '../types';
 import { useTranslation } from '../contexts/LanguageContext';
 import { IMAGE_BASE_URL, BACKDROP_SIZE, BACKDROP_SIZE_MEDIUM } from '../contexts/constants';
 
@@ -48,7 +48,7 @@ export const useToast = () => {
     return setToast;
 }
 
-const RecommendationCard: React.FC<{ item: Movie }> = ({ item }) => {
+const RecommendationCard: React.FC<{ item: Movie; dataFocusGroup?: string; dataFocusIndex?: number; }> = ({ item, dataFocusGroup, dataFocusIndex }) => {
     const { setModalItem } = useProfile();
     const { t } = useTranslation();
     const { toggleFavorite } = useProfile();
@@ -70,6 +70,8 @@ const RecommendationCard: React.FC<{ item: Movie }> = ({ item }) => {
             onClick={handleCardClick}
             onKeyDown={(e) => e.key === 'Enter' && handleCardClick()}
             tabIndex={0}
+            data-focus-group={dataFocusGroup}
+            data-focus-index={dataFocusIndex}
         >
             <div className="relative">
                 <img
@@ -102,7 +104,7 @@ const RecommendationCard: React.FC<{ item: Movie }> = ({ item }) => {
 export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ item, onClose }) => {
     const { t } = useTranslation();
     const navigate = useNavigate();
-    const { isFavorite, toggleFavorite, setToast } = useProfile();
+    const { isFavorite, toggleFavorite, setToast, isYtApiReady } = useProfile();
     const [details, setDetails] = useState<Movie | null>(null);
     const [loading, setLoading] = useState(true);
     const [episodes, setEpisodes] = useState<Episode[]>([]);
@@ -110,9 +112,15 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
     const [animationState, setAnimationState] = useState<'entering' | 'exiting' | 'visible'>('entering');
     const [isExpanded, setIsExpanded] = useState(false);
 
+    // Ad state
+    const [showAd, setShowAd] = useState(false);
+    const [isAdMuted, setIsAdMuted] = useState(true);
+    const playerRef = useRef<YTPlayer | null>(null);
+    const playerContainerId = useMemo(() => `details-modal-player-${item.id}-${Math.random().toString(36).substring(7)}`, [item.id]);
+
     const modalRef = useRef<HTMLDivElement>(null);
     const playButtonRef = useRef<HTMLButtonElement>(null);
-    const episodeListRef = useRef<HTMLDivElement>(null);
+    const seasonSelectContainerRef = useRef<HTMLDivElement>(null);
 
     const type = item.media_type || (item.title ? 'movie' : 'tv');
 
@@ -120,53 +128,205 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
         const expandTimer = setTimeout(() => {
             setIsExpanded(true);
         }, 3000);
+        
+        const adTimer = setTimeout(() => {
+            setShowAd(true);
+        }, 5000);
 
-        return () => clearTimeout(expandTimer);
+        return () => {
+            clearTimeout(expandTimer);
+            clearTimeout(adTimer);
+        };
     }, []);
 
+    // YouTube IFrame Player API logic
+    useEffect(() => {
+        if (!showAd || !details?.videos?.results || !isYtApiReady) {
+            return;
+        }
+
+        const trailer =
+            details.videos.results.find((v: any) => v.type === 'Trailer' && v.site === 'YouTube') ||
+            details.videos.results.find((v: any) => v.type === 'Teaser' && v.site === 'YouTube') ||
+            details.videos.results.find((v: any) => v.site === 'YouTube');
+
+        if (!trailer?.key || document.getElementById(playerContainerId)?.querySelector('iframe')) {
+            return;
+        }
+        
+        let player: YTPlayer | null = null;
+        player = new window.YT.Player(playerContainerId, {
+            videoId: trailer.key,
+            playerVars: {
+                autoplay: 1,
+                controls: 0,
+                showinfo: 0,
+                rel: 0,
+                iv_load_policy: 3,
+                modestbranding: 1,
+                loop: 1,
+                playlist: trailer.key,
+                playsinline: 1,
+            },
+            events: {
+                onReady: (event: { target: YTPlayer }) => {
+                    playerRef.current = event.target;
+                    event.target.mute();
+                    setIsAdMuted(true);
+                    event.target.playVideo();
+                },
+            }
+        });
+
+        return () => {
+            if (player && typeof player.destroy === 'function') {
+                player.destroy();
+            }
+            playerRef.current = null;
+        };
+    }, [showAd, details, playerContainerId, isYtApiReady]);
+
+    const handleToggleAdMute = () => {
+        if (playerRef.current && typeof playerRef.current.isMuted === 'function') {
+            if (playerRef.current.isMuted()) {
+                playerRef.current.unMute();
+                setIsAdMuted(false);
+            } else {
+                playerRef.current.mute();
+                setIsAdMuted(true);
+            }
+        }
+    };
+    
     useEffect(() => {
         document.body.classList.add('modal-open');
         playButtonRef.current?.focus();
         return () => {
             document.body.classList.remove('modal-open');
         };
-    }, [details]);
+    }, []);
     
+    // New Unified Keyboard Navigation Handler
     useEffect(() => {
         const modalNode = modalRef.current;
         if (!modalNode || !details) return;
-
-        const focusableElements = Array.from(
-            modalNode.querySelectorAll(
-                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-            )
-        ).filter(
-            el => !el.hasAttribute('disabled') && (el as HTMLElement).offsetParent !== null
-        ) as HTMLElement[];
         
-        if (focusableElements.length === 0) return;
-
-        const firstElement = focusableElements[0];
-        const lastElement = focusableElements[focusableElements.length - 1];
+        const focusAndScroll = (element: HTMLElement | null | undefined) => {
+            // Make sure we only focus elements that are actually visible
+            if (element && element.offsetParent !== null) {
+                element.focus({ preventScroll: true });
+                // Custom scroll to ensure visibility without jarring jumps
+                element.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+            }
+        };
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== 'Tab') return;
+            const isDropdownOpen = seasonSelectContainerRef.current?.querySelector('[aria-expanded="true"]');
+            if (isDropdownOpen && ['ArrowUp', 'ArrowDown', 'Enter', ' '].includes(e.key)) {
+                // Let the CustomSelect component handle its own navigation when open
+                return;
+            }
 
-            if (e.shiftKey) { 
-                if (document.activeElement === firstElement) {
-                    e.preventDefault();
-                    lastElement.focus();
-                }
-            } else { 
-                if (document.activeElement === lastElement) {
-                    e.preventDefault();
-                    firstElement.focus();
-                }
+            // We only care about arrow keys for this logic
+            if (!e.key.startsWith('Arrow')) {
+                // Allow other keys to work, but stop propagation of arrows to prevent global handlers from interfering
+                if (e.key === 'Tab') e.stopPropagation();
+                return;
+            }
+            
+            e.preventDefault();
+            e.stopPropagation();
+
+            const active = document.activeElement as HTMLElement;
+
+            // If focus is lost or outside the modal, reset it.
+            if (!active || !modalNode.contains(active)) {
+                focusAndScroll(modalNode.querySelector('[data-focus-group="main-actions"][data-focus-index="0"]') as HTMLElement);
+                return;
+            }
+            
+            // Find the parent element that defines the focus group. This handles nested components.
+            const focusContainer = active.closest('[data-focus-group]') as HTMLElement | null;
+
+            // If the focused element isn't inside a recognized group, reset to a safe default.
+            if (!focusContainer) {
+                focusAndScroll(modalNode.querySelector('[data-focus-group="main-actions"][data-focus-index="0"]') as HTMLElement);
+                return;
+            }
+
+            const group = focusContainer.dataset.focusGroup;
+            // The index can be on the active element itself or on the focus group container.
+            const index = parseInt(active.dataset.focusIndex || focusContainer.dataset.focusIndex || '0', 10);
+
+            // A helper to quickly get a focusable element by its selector
+            const getElement = (selector: string) => modalNode.querySelector(selector) as HTMLElement | null;
+
+            switch (group) {
+                case 'top-right':
+                    if (e.key === 'ArrowRight' && index === 0) focusAndScroll(getElement(`[data-focus-group="top-right"][data-focus-index="1"]`));
+                    else if (e.key === 'ArrowLeft' && index === 1) focusAndScroll(getElement(`[data-focus-group="top-right"][data-focus-index="0"]`));
+                    else if (e.key === 'ArrowDown') focusAndScroll(getElement('[data-focus-group="main-actions"][data-focus-index="0"]'));
+                    break;
+
+                case 'main-actions':
+                    const actions = Array.from(modalNode.querySelectorAll('[data-focus-group="main-actions"]')).filter(el => (el as HTMLElement).offsetParent !== null) as HTMLElement[];
+                    const currentIndex = actions.indexOf(active);
+                    if (e.key === 'ArrowRight') focusAndScroll(actions[(currentIndex + 1) % actions.length]);
+                    else if (e.key === 'ArrowLeft') focusAndScroll(actions[(currentIndex - 1 + actions.length) % actions.length]);
+                    else if (e.key === 'ArrowUp') focusAndScroll(getElement('[data-focus-group="top-right"][data-focus-index="0"]'));
+                    else if (e.key === 'ArrowDown') focusAndScroll(getElement('[data-focus-group="season-select"] button'));
+                    break;
+
+                case 'season-select':
+                    if (e.key === 'ArrowUp') focusAndScroll(getElement('[data-focus-group="main-actions"][data-focus-index="0"]'));
+                    else if (e.key === 'ArrowDown') focusAndScroll(getElement('[data-focus-group="episodes"][data-focus-index="0"]'));
+                    break;
+
+                case 'episodes':
+                    const episodes = Array.from(modalNode.querySelectorAll('[data-focus-group="episodes"]'));
+                    if (e.key === 'ArrowDown') {
+                        if (index < episodes.length - 1) focusAndScroll(getElement(`[data-focus-group="episodes"][data-focus-index="${index + 1}"]`));
+                    } else if (e.key === 'ArrowUp') {
+                        if (index > 0) focusAndScroll(getElement(`[data-focus-group="episodes"][data-focus-index="${index - 1}"]`));
+                        else focusAndScroll(getElement('[data-focus-group="season-select"] button'));
+                    } else if (e.key === 'ArrowLeft') {
+                        focusAndScroll(getElement('[data-focus-group="similar"][data-focus-index="0"]'));
+                    } else if (e.key === 'ArrowRight') {
+                        focusAndScroll(getElement('[data-focus-group="season-select"] button'));
+                    }
+                    break;
+
+                case 'similar':
+                    const similarContainer = getElement('#similar-section .grid');
+                    if (!similarContainer) break;
+                    
+                    const similarCards = Array.from(similarContainer.querySelectorAll('[data-focus-group="similar"]')).filter(el => (el as HTMLElement).offsetParent !== null) as HTMLElement[];
+                    if (similarCards.length === 0) break;
+
+                    const cardIndex = similarCards.indexOf(active);
+                    if (cardIndex === -1) break;
+
+                    // Dynamically calculate items per row to handle responsive layouts
+                    const firstCardY = similarCards[0].getBoundingClientRect().top;
+                    const itemsPerRow = similarCards.filter(c => c.getBoundingClientRect().top === firstCardY).length || 1;
+
+                    if (e.key === 'ArrowRight') {
+                        if ((cardIndex + 1) % itemsPerRow !== 0 && cardIndex < similarCards.length - 1) focusAndScroll(similarCards[cardIndex + 1]);
+                    } else if (e.key === 'ArrowLeft') {
+                        if (cardIndex % itemsPerRow !== 0) focusAndScroll(similarCards[cardIndex - 1]);
+                    } else if (e.key === 'ArrowDown') {
+                        const targetIdx = cardIndex + itemsPerRow;
+                        if (targetIdx < similarCards.length) focusAndScroll(similarCards[targetIdx]);
+                    } else if (e.key === 'ArrowUp') {
+                        const targetIdx = cardIndex - itemsPerRow;
+                        if (targetIdx >= 0) focusAndScroll(similarCards[targetIdx]);
+                        else focusAndScroll(getElement('[data-focus-group="episodes"][data-focus-index="0"]'));
+                    }
+                    break;
             }
         };
 
         modalNode.addEventListener('keydown', handleKeyDown);
-
         return () => {
             modalNode.removeEventListener('keydown', handleKeyDown);
         };
@@ -269,29 +429,6 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
 
     const isFav = details ? isFavorite(details.id) : false;
 
-    const handleEpisodeKeyDown = (e: React.KeyboardEvent, episode: Episode) => {
-        if (e.key === 'Enter') handleEpisodePlay(episode);
-        
-        // Custom logic for right arrow to exit episode list
-        if (e.key === 'ArrowRight') {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const similarSection = document.getElementById('similar-section');
-            if (similarSection) {
-                 const firstSimilarCard = similarSection.querySelector('.focusable') as HTMLElement;
-                 if (firstSimilarCard) {
-                     firstSimilarCard.focus();
-                 }
-            }
-            
-            if(episodeListRef.current) {
-                episodeListRef.current.scrollTop = 0;
-            }
-        }
-    };
-
-
     return ReactDOM.createPortal(
         <div className={`details-modal-backdrop ${animationState === 'exiting' ? 'exiting' : ''}`} onClick={handleClose}>
             <div
@@ -309,20 +446,27 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
                 ) : (
                     <>
                         <div className="absolute top-4 right-4 z-20 flex gap-2">
-                           <button onClick={() => setIsExpanded(!isExpanded)} className="w-9 h-9 flex items-center justify-center bg-black/60 rounded-full text-white text-lg btn-press focusable">
+                           <button onClick={() => setIsExpanded(!isExpanded)} className="w-9 h-9 flex items-center justify-center bg-black/60 rounded-full text-white text-lg btn-press focusable" data-focus-group="top-right" data-focus-index="0">
                                 <i className={`fas ${isExpanded ? 'fa-compress' : 'fa-expand'} pointer-events-none`}></i>
                             </button>
-                            <button onClick={handleClose} className="w-9 h-9 flex items-center justify-center bg-black/60 rounded-full text-white text-xl btn-press focusable">
+                            <button onClick={handleClose} className="w-9 h-9 flex items-center justify-center bg-black/60 rounded-full text-white text-xl btn-press focusable" data-focus-group="top-right" data-focus-index="1">
                                 <i className="fas fa-times pointer-events-none"></i>
                             </button>
                         </div>
                         <div className="w-full h-full overflow-y-auto no-scrollbar">
-                            <div className="relative w-full h-[56.25%] min-h-[250px] md:min-h-[400px]">
-                                <img
-                                    src={`${IMAGE_BASE_URL}${BACKDROP_SIZE}${details.backdrop_path}`}
-                                    alt={details.title || details.name}
-                                    className="absolute inset-0 object-cover w-full h-full"
-                                />
+                            <div className="relative w-full h-[56.25%] min-h-[250px] md:min-h-[400px] overflow-hidden">
+                                {showAd && details.videos?.results?.length ? (
+                                    <div
+                                        id={playerContainerId}
+                                        className="absolute top-1/2 left-1/2 w-full h-full transform -translate-x-1/2 -translate-y-1/2 scale-125"
+                                    />
+                                ) : (
+                                    <img
+                                        src={`${IMAGE_BASE_URL}${BACKDROP_SIZE}${details.backdrop_path}`}
+                                        alt={details.title || details.name}
+                                        className="absolute inset-0 object-cover w-full h-full"
+                                    />
+                                )}
                                 <div className="absolute inset-0 bg-gradient-to-t from-[var(--background)] via-[var(--background)]/70 to-transparent"></div>
                                 <div className="absolute bottom-8 left-8 z-10 max-w-[70%]">
                                     {logoUrl ? (
@@ -335,13 +479,23 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
                                         <h1 className="text-4xl font-black text-white" style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.7)' }}>{details.title || details.name}</h1>
                                     )}
                                     <div className="flex items-center gap-3 mt-4">
-                                        <button ref={playButtonRef} onClick={handlePlay} className="px-6 py-2 text-lg font-bold text-black bg-white rounded-md hover:bg-opacity-80 flex items-center justify-center gap-2 btn-press focusable">
+                                        <button ref={playButtonRef} onClick={handlePlay} className="px-6 py-2 text-lg font-bold text-black bg-white rounded-md hover:bg-opacity-80 flex items-center justify-center gap-2 btn-press focusable" data-focus-group="main-actions" data-focus-index="0">
                                             <i className="fas fa-play"></i><span>{t('play')}</span>
                                         </button>
-                                        <button onClick={() => toggleFavorite(details)} className={`w-11 h-11 flex items-center justify-center rounded-full border-2 border-zinc-400 text-white text-xl btn-press hover:border-white focusable`}>
+                                        <button onClick={() => toggleFavorite(details)} className={`w-11 h-11 flex items-center justify-center rounded-full border-2 border-zinc-400 text-white text-xl btn-press hover:border-white focusable`} data-focus-group="main-actions" data-focus-index="1">
                                             <i className={`fas ${isFav ? 'fa-check' : 'fa-plus'}`}></i>
                                         </button>
-                                        <button className="w-11 h-11 flex items-center justify-center rounded-full border-2 border-zinc-400 text-white text-xl btn-press hover:border-white focusable">
+                                        {showAd && details.videos?.results && (
+                                            <button 
+                                                onClick={handleToggleAdMute} 
+                                                className="w-11 h-11 flex items-center justify-center rounded-full border-2 border-zinc-400 text-white text-xl btn-press hover:border-white focusable"
+                                                aria-label={isAdMuted ? "Unmute Ad" : "Mute Ad"}
+                                                data-focus-group="main-actions" data-focus-index="2"
+                                            >
+                                                <i className={`fas ${isAdMuted ? 'fa-volume-xmark' : 'fa-volume-high'}`}></i>
+                                            </button>
+                                        )}
+                                        <button className="w-11 h-11 flex items-center justify-center rounded-full border-2 border-zinc-400 text-white text-xl btn-press hover:border-white focusable" data-focus-group="main-actions" data-focus-index="3">
                                             <i className="far fa-thumbs-up"></i>
                                         </button>
                                     </div>
@@ -368,29 +522,33 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
                                     <div className="mt-8">
                                         <div className="flex items-center justify-between mb-4">
                                             <h2 className="text-2xl font-bold">{t('episodes')}</h2>
-                                            <CustomSelect
-                                                value={String(selectedSeason)}
-                                                onChange={(value) => {
-                                                    if (value) {
-                                                        fetchEpisodes(details.id, parseInt(value, 10));
-                                                    }
-                                                }}
-                                                options={seasonOptions}
-                                                placeholder={t('season')}
-                                                className="w-48"
-                                            />
+                                            <div ref={seasonSelectContainerRef} data-focus-group="season-select">
+                                                <CustomSelect
+                                                    value={String(selectedSeason)}
+                                                    onChange={(value) => {
+                                                        if (value) {
+                                                            fetchEpisodes(details.id, parseInt(value, 10));
+                                                        }
+                                                    }}
+                                                    options={seasonOptions}
+                                                    placeholder={t('season')}
+                                                    className="w-48"
+                                                />
+                                            </div>
                                         </div>
-                                        <div ref={episodeListRef} className="flex flex-col gap-4 max-h-80 overflow-y-auto pr-2">
-                                        {episodes.map((episode) => (
+                                        <div className="flex flex-col gap-4 max-h-80 overflow-y-auto pr-2">
+                                        {episodes.map((episode, index) => (
                                             <div 
                                                 key={episode.id} 
-                                                className="flex items-center gap-4 p-2 rounded-xl cursor-pointer hover:bg-zinc-800 focusable" 
+                                                className="group flex items-center gap-4 p-2 rounded-xl cursor-pointer hover:bg-zinc-800 focusable focus:scale-100" 
                                                 onClick={() => handleEpisodePlay(episode)}
-                                                onKeyDown={(e) => handleEpisodeKeyDown(e, episode)}
+                                                onKeyDown={(e) => e.key === 'Enter' && handleEpisodePlay(episode)}
                                                 tabIndex={0}
+                                                data-focus-group="episodes"
+                                                data-focus-index={index}
                                             >
                                                 <span className="text-xl text-zinc-400 font-bold">{episode.episode_number}</span>
-                                                <div className="relative flex-shrink-0 w-36 h-20 overflow-hidden rounded-md">
+                                                <div className="relative flex-shrink-0 w-36 h-20 overflow-hidden rounded-md transition-transform duration-300 group-hover:scale-105 group-focus-within:scale-105">
                                                     <img src={episode.still_path ? `${IMAGE_BASE_URL}w300${episode.still_path}` : `${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${details.backdrop_path}`} alt={episode.name} className="object-cover w-full h-full" />
                                                 </div>
                                                 <div className="flex-1">
@@ -407,8 +565,8 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
                                     <div className="mt-10" id="similar-section">
                                         <h2 className="text-2xl font-bold mb-4 focusable" tabIndex={-1}>{t('similar')}</h2>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                                            {details.recommendations.results.filter(r => r.backdrop_path).slice(0, 9).map(rec => (
-                                                <RecommendationCard key={rec.id} item={rec} />
+                                            {details.recommendations.results.filter(r => r.backdrop_path).slice(0, 9).map((rec, index) => (
+                                                <RecommendationCard key={rec.id} item={rec} dataFocusGroup="similar" dataFocusIndex={index}/>
                                             ))}
                                         </div>
                                     </div>
@@ -517,20 +675,31 @@ export const CustomSelect: React.FC<{
     const handleOptionKeyDown = (e: React.KeyboardEvent<HTMLLIElement>, optionValue: string) => {
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
+            e.stopPropagation();
             handleSelect(optionValue);
         } else if (e.key === 'Escape') {
             e.preventDefault();
+            e.stopPropagation();
             setIsOpen(false);
-        } else if (e.key === 'ArrowDown') {
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
-            const current = e.currentTarget;
-            const next = current.nextElementSibling as HTMLLIElement;
-            if(next) next.focus();
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            const current = e.currentTarget;
-            const prev = current.previousElementSibling as HTMLLIElement;
-            if(prev) prev.focus();
+            e.stopPropagation();
+            const validOptions = optionsRef.current.filter((el): el is HTMLLIElement => el !== null);
+            if (validOptions.length === 0) return;
+
+            const currentIndex = validOptions.indexOf(e.currentTarget);
+            if (currentIndex === -1) {
+                validOptions[0]?.focus();
+                return;
+            }
+
+            let nextIndex;
+            if (e.key === 'ArrowDown') {
+                nextIndex = (currentIndex + 1) % validOptions.length;
+            } else { // ArrowUp
+                nextIndex = (currentIndex - 1 + validOptions.length) % validOptions.length;
+            }
+            validOptions[nextIndex]?.focus();
         }
     };
 
