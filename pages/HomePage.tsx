@@ -1,6 +1,5 @@
 
 
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchFromTMDB } from '../services/apiService';
@@ -97,7 +96,7 @@ const Hero: React.FC<{ movie: Movie | null; isKids: boolean; }> = ({ movie, isKi
 };
 
 
-const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, isNetflixOriginal?: boolean, isRecentlyAdded?: boolean }> = ({ movie, onCardClick, isNetflixOriginal, isRecentlyAdded }) => {
+const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, isNetflixOriginal?: boolean, isRecentlyAdded?: boolean, onCardFocus: (element: HTMLElement) => void, index: number }> = ({ movie, onCardClick, isNetflixOriginal, isRecentlyAdded, onCardFocus, index }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { isYtApiReady } = useProfile();
@@ -109,6 +108,21 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playerContainerId = useMemo(() => `poster-player-${movie.id}-${Math.random().toString(36).substring(2)}`, [movie.id]);
   const progressPercent = (movie.duration && movie.currentTime && movie.duration > 0) ? (movie.currentTime / movie.duration) * 100 : 0;
+  
+  const [isFocused, setIsFocused] = useState(false);
+  const cardRef = useRef<HTMLDivElement>(null);
+
+  const handleFocus = useCallback(() => {
+    setIsFocused(true);
+    if (cardRef.current) {
+      onCardFocus(cardRef.current);
+    }
+  }, [onCardFocus]);
+
+  const handleBlur = useCallback(() => {
+    setIsFocused(false);
+  }, []);
+
 
   const handleMouseEnter = useCallback(() => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
@@ -197,6 +211,7 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
 
   return (
     <div 
+        ref={cardRef}
         className="interactive-card-container relative flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px] cursor-pointer focusable"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
@@ -204,6 +219,9 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
         tabIndex={0}
         onClick={() => onCardClick(movie)}
         onKeyDown={(e) => e.key === 'Enter' && onCardClick(movie)}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        style={{ animationDelay: `${index * 50}ms` }}
     >
       <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-lg shadow-lg bg-[var(--surface)] interactive-card">
         {isNetflixOriginal && (
@@ -267,6 +285,11 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
             </div>
         )}
       </div>
+      <div className={`absolute -bottom-10 left-2 right-2 text-left transition-all duration-300 ease-in-out ${isFocused ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+          <p className="text-sm font-semibold text-white truncate drop-shadow-lg">
+              {movie.title || movie.name}
+          </p>
+      </div>
     </div>
   );
 };
@@ -274,14 +297,89 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
 
 const ContentRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie: Movie) => void; category?: string, isNetflixRow?: boolean, isRecentlyAddedRow?: boolean, zIndex?: number }> = ({ title, movies, onCardClick, category, isNetflixRow = false, isRecentlyAddedRow = false, zIndex }) => {
     if (!movies || movies.length === 0) return null;
+    
+    const [isRowActive, setIsRowActive] = useState(false);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const rowContentRef = useRef<HTMLDivElement>(null);
+    const [translateX, setTranslateX] = useState(0);
+
+    const rowRef = useRef<HTMLDivElement>(null);
+    const [isInView, setIsInView] = useState(false);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setIsInView(true);
+                    observer.unobserve(entry.target);
+                }
+            },
+            {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.1
+            }
+        );
+
+        const currentRef = rowRef.current;
+        if (currentRef) {
+            observer.observe(currentRef);
+        }
+
+        return () => {
+            if (currentRef) {
+                observer.unobserve(currentRef);
+            }
+        };
+    }, []);
+
+    const handleCardFocus = useCallback((cardElement: HTMLElement) => {
+        if (!scrollContainerRef.current || !rowContentRef.current) return;
+
+        const containerWidth = scrollContainerRef.current.clientWidth;
+        const contentWidth = rowContentRef.current.scrollWidth;
+        const padding = 24; // from px-6
+
+        let targetScroll = cardElement.offsetLeft - padding;
+
+        const maxScroll = contentWidth - containerWidth;
+        if (targetScroll > maxScroll) {
+            targetScroll = maxScroll;
+        }
+
+        if (targetScroll < 0) {
+            targetScroll = 0;
+        }
+
+        setTranslateX(-targetScroll);
+    }, []);
+
+
     return (
-        <div className="my-6 md:my-8" style={{ zIndex }}>
-            <div className="flex items-baseline justify-between mb-3">
-                <h2 className="text-lg md:text-xl font-bold text-white">{title}</h2>
+        <div 
+            ref={rowRef}
+            className={`content-row ${isInView ? 'is-in-view' : ''}`}
+            style={{ zIndex }}
+            onFocus={() => setIsRowActive(true)}
+            onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    setIsRowActive(false);
+                }
+            }}
+        >
+            <div className="flex items-baseline justify-between mb-3 px-6">
+                 <h2 className={`text-lg md:text-xl font-bold text-white transition-all duration-300 ease-out origin-left ${isRowActive ? 'scale-100' : 'scale-90 text-zinc-400'}`}>{title}</h2>
             </div>
-            <div className="overflow-x-auto no-scrollbar py-32 -my-32">
-                <div className="flex flex-nowrap gap-x-6">
-                    {movies.map(movie => <PosterCard key={`${category || 'carousel'}-${movie.id}`} movie={movie} onCardClick={onCardClick} isNetflixOriginal={isNetflixRow} isRecentlyAdded={isRecentlyAddedRow} />)}
+            <div ref={scrollContainerRef} className="overflow-x-hidden no-scrollbar py-32 -my-32">
+                <div
+                    ref={rowContentRef}
+                    className="flex flex-nowrap gap-x-6 px-6"
+                    style={{
+                        transform: `translateX(${translateX}px)`,
+                        transition: 'transform 0.4s ease-in-out'
+                    }}
+                >
+                    {movies.map((movie, index) => <PosterCard key={`${category || 'carousel'}-${movie.id}`} movie={movie} onCardClick={onCardClick} isNetflixOriginal={isNetflixRow} isRecentlyAdded={isRecentlyAddedRow} onCardFocus={handleCardFocus} index={index}/>)}
                 </div>
             </div>
         </div>
@@ -324,13 +422,14 @@ const SimpleContentRow: React.FC<{ movies: Movie[]; onCardClick: (movie: Movie) 
 };
 
 
-const TopTenCard: React.FC<{ movie: Movie; rank: number; onCardClick: (movie: Movie) => void; }> = ({ movie, rank, onCardClick }) => {
+const TopTenCard: React.FC<{ movie: Movie; rank: number; onCardClick: (movie: Movie) => void; index: number; }> = ({ movie, rank, onCardClick, index }) => {
   if (!movie.poster_path) return null;
 
   return (
     <div
       className="flex-shrink-0 w-52 flex items-center group cursor-pointer"
       onClick={() => onCardClick(movie)}
+      style={{ animationDelay: `${index * 80}ms` }}
     >
       <span
         className="text-[12rem] font-black text-[#262626] -mr-8 transition-colors duration-300 group-hover:text-zinc-700"
@@ -357,15 +456,46 @@ const TopTenCard: React.FC<{ movie: Movie; rank: number; onCardClick: (movie: Mo
 
 const TopTenRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie: Movie) => void; zIndex?: number }> = ({ title, movies, onCardClick, zIndex }) => {
     if (!movies || movies.length === 0) return null;
+
+    const rowRef = useRef<HTMLDivElement>(null);
+    const [isInView, setIsInView] = useState(false);
+
+    useEffect(() => {
+        const observer = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setIsInView(true);
+                    observer.unobserve(entry.target);
+                }
+            },
+            {
+                root: null,
+                rootMargin: '0px',
+                threshold: 0.1
+            }
+        );
+
+        const currentRef = rowRef.current;
+        if (currentRef) {
+            observer.observe(currentRef);
+        }
+
+        return () => {
+            if (currentRef) {
+                observer.unobserve(currentRef);
+            }
+        };
+    }, []);
+
     return (
-        <div className="my-6 md:my-8" style={{ zIndex }}>
+        <div ref={rowRef} className={`top-ten-row ${isInView ? 'is-in-view' : ''}`} style={{ zIndex }}>
             <div className="flex items-baseline justify-between mb-3">
                 <h2 className="text-lg md:text-xl font-bold text-white">{title}</h2>
             </div>
             <div className="overflow-x-auto no-scrollbar py-2">
                 <div className="flex flex-nowrap items-center gap-x-6">
                     {movies.map((movie, index) => (
-                        <TopTenCard key={`top10-${movie.id}`} movie={movie} rank={index + 1} onCardClick={onCardClick} />
+                        <TopTenCard key={`top10-${movie.id}`} movie={movie} rank={index + 1} onCardClick={onCardClick} index={index} />
                     ))}
                 </div>
             </div>
@@ -523,15 +653,8 @@ const HomePage: React.FC = () => {
           ) : (
             <>
                 <Hero movie={data.hero} isKids={isKidsMode} />
-                <div className="relative z-10 mt-12 space-y-6">
-                  <div>
-                    <h2 className="text-lg md:text-xl font-bold text-white mb-3">{t('yourNextWatch')}</h2>
-                    <div className="overflow-x-auto no-scrollbar py-32 -my-32">
-                        <div className="flex flex-nowrap gap-x-6">
-                            {(data.watchTogetherKids || []).slice(0, 10).map((movie: Movie) => <PosterCard key={`your_next_watch-${movie.id}`} movie={movie} onCardClick={handleOpenModal} />)}
-                        </div>
-                    </div>
-                  </div>
+                <div className="relative z-10 mt-12 space-y-20">
+                  <ContentRow title={t('yourNextWatch')} movies={(data.watchTogetherKids || []).slice(0, 10)} onCardClick={handleOpenModal} category="your_next_watch" />
                   <ContentRow title={t('tvDramas')} movies={data.tvDramas} onCardClick={handleOpenModal} category="tv_dramas" zIndex={11} />
                   {data.continueWatching?.length > 0 && <ContentRow title={t('continueWatching')} movies={data.continueWatching} onCardClick={handleOpenModal} category="continue_watching" zIndex={10} />}
                   <TopTenRow title={t('top10Today')} movies={data.topTen} onCardClick={handleOpenModal} zIndex={9} />
