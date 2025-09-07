@@ -122,6 +122,9 @@
         transition: transform 0.3s ease-out, box-shadow 0.3s ease-out !important;
         will-change: transform;
       }
+      .interactive-card-container {
+        position: relative;
+      }
       .interactive-card .quick-view {
         opacity: 0;
         transition: opacity 0.3s ease-in-out, max-height 0.4s ease-in-out, padding 0.4s ease-in-out;
@@ -131,9 +134,11 @@
         padding-bottom: 0;
       }
 
+      .interactive-card-container:hover {
+        z-index: 20;
+      }
       .interactive-card-container:hover .interactive-card {
         transform: scale(1.1) translateY(-25%);
-        z-index: 20;
         box-shadow: 0 10px 30px rgba(0,0,0,0.5);
       }
       .interactive-card-container:hover .quick-view {
@@ -205,6 +210,13 @@
       
       @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
       @keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+      @keyframes fade-in-up {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-fade-in-up {
+        animation: fade-in-up 0.3s ease-out backwards;
+      }
 
       @keyframes modal-scale-in {
         from { opacity: 0; transform: translateX(-50%) scale(0.9); }
@@ -222,12 +234,12 @@
       .animate-slide-in-from-right {
         animation: slide-in-from-right 0.4s cubic-bezier(0.25, 1, 0.5, 1);
       }
-      @keyframes slide-out-right {
+      @keyframes slide-out-to-right {
         from { transform: translateX(0); }
         to { transform: translateX(100%); }
       }
       .animate-slide-out-right {
-         animation: slide-out-right 0.4s cubic-bezier(0.5, 0, 0.75, 0);
+         animation: slide-out-to-right 0.4s cubic-bezier(0.5, 0, 0.75, 0);
       }
 
       /* TV Cursor Click Effect */
@@ -284,6 +296,11 @@
         z-index: 30;
         box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       }
+      .progress-bar-focusable:focus-visible {
+        outline: none !important;
+        transform: scale(1) !important;
+        box-shadow: none !important;
+      }
       /* Special case to remove outline from the profile avatar button in the header. */
       header .flex-shrink-0:first-child .focusable:focus-visible {
         outline: none !important;
@@ -298,6 +315,61 @@
       /* Prevent scaling on Top 10 cards on focus */
       div.focusable.top-ten-card-focusable:focus-visible {
         transform: scale(1);
+      }
+      
+      /* New Player Styles */
+      .player-control-button {
+        width: 44px;
+        height: 44px;
+        border-radius: 9999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: rgba(255, 255, 255, 0.1);
+        transition: background-color 0.3s, color 0.3s;
+      }
+      .player-control-button:focus-visible {
+        background-color: white;
+        color: black;
+        transform: scale(1.1);
+        outline-offset: 0;
+      }
+
+      /* New Side Panel Animations */
+      @keyframes slide-in-right {
+        from { transform: translateX(100%); }
+        to { transform: translateX(0); }
+      }
+      .animate-slide-in-right {
+        animation: slide-in-right 0.3s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+      }
+      @keyframes slide-out-right {
+        from { transform: translateX(0); }
+        to { transform: translateX(100%); }
+      }
+      .animate-slide-out-right {
+        animation: slide-out-right 0.3s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+      }
+
+      /* New Side Panel Button Styles */
+      .player-panel-button {
+        width: 100%;
+        text-align: left;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        font-size: 1rem;
+        font-weight: 500;
+        transition: background-color 0.2s;
+        display: flex;
+        align-items: center;
+      }
+      .player-panel-button:hover, .player-panel-button:focus-visible {
+        background-color: rgba(255, 255, 255, 0.15);
+        outline: none;
+      }
+      .player-panel-button.active {
+        background-color: rgba(255, 255, 255, 0.25);
+        font-weight: 700;
       }
     </style>
   <script type="importmap">
