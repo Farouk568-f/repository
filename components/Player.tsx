@@ -826,7 +826,7 @@ const Controls: React.FC<any> = ({
     const subtitle = `Sky Sports Premier Leagu... • 200K views • 12 hr ago`;
 
     return (
-        <div className={`absolute inset-x-0 bottom-0 text-white transition-opacity duration-300 transition-transform duration-300 ease-in-out flex flex-col ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'} ${isRecsFocused ? 'translate-y-0' : 'translate-y-28'}`} onClick={(e) => e.stopPropagation()}>
+        <div className={`absolute inset-x-0 -bottom-4 text-white transition-opacity duration-300 transition-transform duration-300 ease-in-out flex flex-col ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'} ${isRecsFocused ? 'translate-y-0' : 'translate-y-28'}`} onClick={(e) => e.stopPropagation()}>
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent pointer-events-none"></div>
             
             <div className="relative p-4 lg:p-6 pb-8 lg:pb-10 flex flex-col gap-4">
