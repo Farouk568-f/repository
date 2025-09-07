@@ -53,16 +53,25 @@ const PlayerPage: React.FC = () => {
                 setItem(data);
                 
                 if (type === 'tv') {
-                    const seasonToFetch = currentSeason || (data.seasons?.find((s: Season) => s.season_number > 0 && s.episode_count > 0)?.season_number ?? 1);
+                    // When a new item is loaded, use its initialSeason prop, not the previous item's state.
+                    const seasonToFetch = initialSeason || (data.seasons?.find((s: Season) => s.season_number > 0 && s.episode_count > 0)?.season_number ?? 1);
                     setCurrentSeason(seasonToFetch);
                     if (data.id && seasonToFetch) {
                         const seasonData = await fetchFromTMDB(`/tv/${data.id}/season/${seasonToFetch}`);
                         setEpisodes(seasonData.episodes);
-                        if (!currentEpisode) {
+                        // Similarly, use initialEpisode prop. If it's not present (e.g. clicking on a series card), default to first episode.
+                        if (!initialEpisode) {
                            const firstEpisode = seasonData.episodes.find((ep: Episode) => ep.episode_number > 0) || seasonData.episodes[0];
                            setCurrentEpisode(firstEpisode);
+                        } else {
+                           setCurrentEpisode(initialEpisode);
                         }
                     }
+                } else {
+                    // When loading a movie, ensure any TV show state is cleared.
+                    setCurrentSeason(undefined);
+                    setCurrentEpisode(null);
+                    setEpisodes([]);
                 }
             } catch (error) {
                 console.error("Failed to fetch player page data:", error);
@@ -74,7 +83,7 @@ const PlayerPage: React.FC = () => {
 
         fetchAllData();
 
-    }, [initialItem?.id, type, navigate, setPipData]);
+    }, [initialItem?.id, type, initialSeason, initialEpisode, streamUrl, navigate, setPipData, setToast, t]);
     
      useEffect(() => {
         const video = videoNode;
