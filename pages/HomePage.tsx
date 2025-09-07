@@ -96,7 +96,7 @@ const Hero: React.FC<{ movie: Movie | null; isKids: boolean; }> = ({ movie, isKi
 };
 
 
-const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, isNetflixOriginal?: boolean, isRecentlyAdded?: boolean, onCardFocus: (element: HTMLElement) => void, index: number }> = ({ movie, onCardClick, isNetflixOriginal, isRecentlyAdded, onCardFocus, index }) => {
+const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, isNetflixOriginal?: boolean, isRecentlyAdded?: boolean, onCardFocus: (element: HTMLElement) => void, index: number, isContinueWatching?: boolean }> = ({ movie, onCardClick, isNetflixOriginal, isRecentlyAdded, onCardFocus, index, isContinueWatching = false }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
   const { isYtApiReady } = useProfile();
@@ -107,7 +107,6 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
   const playerRef = useRef<YTPlayer | null>(null);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playerContainerId = useMemo(() => `poster-player-${movie.id}-${Math.random().toString(36).substring(2)}`, [movie.id]);
-  const progressPercent = (movie.duration && movie.currentTime && movie.duration > 0) ? (movie.currentTime / movie.duration) * 100 : 0;
   
   const [isFocused, setIsFocused] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -122,6 +121,71 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
   const handleBlur = useCallback(() => {
     setIsFocused(false);
   }, []);
+
+  if (isContinueWatching) {
+    const progressPercent = (movie.duration && movie.currentTime && movie.duration > 0) ? (movie.currentTime / movie.duration) * 100 : 0;
+    
+    const { mainTitle, secondaryText } = useMemo(() => {
+        if (!movie.title) return { mainTitle: movie.name, secondaryText: '' };
+        
+        const titleParts = movie.title.split(': S');
+        if (titleParts.length > 1) { // It's a series
+            const main = titleParts[0];
+            const seasonEpisodePart = 'S' + titleParts[1];
+            const seasonMatch = seasonEpisodePart.match(/S(\d+)/);
+            const episodeMatch = seasonEpisodePart.match(/E(\d+)/);
+            if (seasonMatch && episodeMatch) {
+                const secondary = `S${seasonMatch[1]} Ep ${episodeMatch[1]} • Resume on Netflix`;
+                return { mainTitle: main, secondaryText: secondary };
+            }
+        }
+        // It's a movie, or parsing failed
+        return { mainTitle: movie.title.split(': S')[0], secondaryText: '' }; 
+    }, [movie.title, movie.name]);
+
+    if (!movie.backdrop_path) return null;
+
+    return (
+        <div
+            ref={cardRef}
+            className="flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px] cursor-pointer focusable"
+            tabIndex={0}
+            onClick={() => onCardClick(movie)}
+            onKeyDown={(e) => e.key === 'Enter' && onCardClick(movie)}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            style={{ animationDelay: `${index * 50}ms` }}
+        >
+            <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-lg shadow-lg bg-[var(--surface)] group hover:scale-105 hover:shadow-2xl">
+                <div className="relative w-full aspect-video bg-black">
+                    <img
+                        src={`${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${movie.backdrop_path}`}
+                        alt={mainTitle}
+                        className={`object-cover w-full h-full`}
+                        loading="lazy"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                    
+                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/30">
+                        <div className="h-full bg-white" style={{ width: `${progressPercent}%` }}></div>
+                    </div>
+
+                    <div className="absolute bottom-2.5 left-3 text-white text-xs font-semibold uppercase tracking-wider drop-shadow-md">
+                        {t('resume')}
+                    </div>
+                </div>
+            </div>
+            <div className={`mt-2 text-left`}>
+                <p className="text-sm font-semibold text-white truncate drop-shadow-lg">
+                    {mainTitle}
+                </p>
+                <p className={`text-xs text-zinc-400 truncate transition-opacity duration-200 h-4 ${isFocused ? 'opacity-100' : 'opacity-0'}`}>
+                    {secondaryText}
+                </p>
+            </div>
+        </div>
+    );
+  }
 
 
   const handleMouseEnter = useCallback(() => {
@@ -247,13 +311,6 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
                  )}
             </div>
         </div>
-        {progressPercent > 0 && (
-            <div className="bg-[var(--surface)] py-1 flex justify-center">
-                <div className="w-2/3 h-0.5 bg-zinc-500 rounded-full">
-                    <div className="h-full bg-red-600 rounded-full" style={{ width: `${progressPercent}%` }}></div>
-                </div>
-            </div>
-        )}
         <div className="quick-view bg-[var(--surface)] px-3">
            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -295,7 +352,7 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
 };
 
 
-const ContentRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie: Movie) => void; category?: string, isNetflixRow?: boolean, isRecentlyAddedRow?: boolean, zIndex?: number }> = ({ title, movies, onCardClick, category, isNetflixRow = false, isRecentlyAddedRow = false, zIndex }) => {
+const ContentRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie: Movie) => void; category?: string, isNetflixRow?: boolean, isRecentlyAddedRow?: boolean, zIndex?: number, isContinueWatchingRow?: boolean }> = ({ title, movies, onCardClick, category, isNetflixRow = false, isRecentlyAddedRow = false, zIndex, isContinueWatchingRow = false }) => {
     if (!movies || movies.length === 0) return null;
     
     const [isRowActive, setIsRowActive] = useState(false);
@@ -379,7 +436,7 @@ const ContentRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie
                         transition: 'transform 0.4s ease-in-out'
                     }}
                 >
-                    {movies.map((movie, index) => <PosterCard key={`${category || 'carousel'}-${movie.id}`} movie={movie} onCardClick={onCardClick} isNetflixOriginal={isNetflixRow} isRecentlyAdded={isRecentlyAddedRow} onCardFocus={handleCardFocus} index={index}/>)}
+                    {movies.map((movie, index) => <PosterCard key={`${category || 'carousel'}-${movie.id}`} movie={movie} onCardClick={onCardClick} isNetflixOriginal={isNetflixRow} isRecentlyAdded={isRecentlyAddedRow} onCardFocus={handleCardFocus} index={index} isContinueWatching={isContinueWatchingRow} />)}
                 </div>
             </div>
         </div>
@@ -610,7 +667,7 @@ const HomePage: React.FC = () => {
 
         const history = getScreenSpecificData('history', []);
         const continueWatchingItems = history.map((h: HistoryItem) => ({
-            id: h.id, media_type: h.type, title: h.title.split(':')[0], name: h.title.split(':')[0],
+            id: h.id, media_type: h.type, title: h.title, name: h.title,
             backdrop_path: h.itemImage.replace(`${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}`, ''),
             poster_path: '', overview: '', vote_average: 0, vote_count: 0,
             currentTime: h.currentTime, duration: h.duration,
@@ -642,9 +699,9 @@ const HomePage: React.FC = () => {
           {isKidsMode ? (
             <>
                 <Hero movie={data.hero} isKids={isKidsMode} />
-                <div className="relative z-10 mt-12 space-y-20">
+                <div className="relative z-10 mt-8">
                   <ContentRow title={t('kidsFavorites')} movies={data.kidsFavorites} onCardClick={handleOpenModal} zIndex={12} />
-                  {data.continueWatching?.length > 0 && <ContentRow title={t('continueWatching')} movies={data.continueWatching} onCardClick={handleOpenModal} zIndex={10} />}
+                  {data.continueWatching?.length > 0 && <ContentRow title={t('continueWatching')} movies={data.continueWatching} onCardClick={handleOpenModal} isContinueWatchingRow={true} zIndex={10} />}
                   <ContentRow title={t('animatedAdventures')} movies={data.animatedAdventures} onCardClick={handleOpenModal} zIndex={11} />
                   <ContentRow title={t('familyMovies')} movies={data.familyMovies} onCardClick={handleOpenModal} zIndex={9} />
                   <ContentRow title={t('disneyMagic')} movies={data.disneyMagic} onCardClick={handleOpenModal} zIndex={8} />
@@ -656,7 +713,7 @@ const HomePage: React.FC = () => {
                 <div className="relative z-10 mt-12 space-y-20">
                   <ContentRow title={t('yourNextWatch')} movies={(data.watchTogetherKids || []).slice(0, 10)} onCardClick={handleOpenModal} category="your_next_watch" />
                   <ContentRow title={t('tvDramas')} movies={data.tvDramas} onCardClick={handleOpenModal} category="tv_dramas" zIndex={11} />
-                  {data.continueWatching?.length > 0 && <ContentRow title={t('continueWatching')} movies={data.continueWatching} onCardClick={handleOpenModal} category="continue_watching" zIndex={10} />}
+                  {data.continueWatching?.length > 0 && <ContentRow title={t('continueWatching')} movies={data.continueWatching} onCardClick={handleOpenModal} category="continue_watching" isContinueWatchingRow={true} zIndex={10} />}
                   <TopTenRow title={t('top10Today')} movies={data.topTen} onCardClick={handleOpenModal} zIndex={9} />
                   <ContentRow title={t('trendingThisWeek')} movies={data.trending} onCardClick={handleOpenModal} category="trending" zIndex={8} />
                   <ContentRow title={t('netflixOriginals')} movies={data.netflixOriginals} onCardClick={handleOpenModal} category="netflix_originals" isNetflixRow zIndex={7} />
