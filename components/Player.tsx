@@ -4,7 +4,7 @@ import * as Hls from 'hls.js';
 import { Movie, Episode, SubtitleTrack, SubtitleSettings, StreamLink } from '../types';
 import { useProfile } from '../contexts/ProfileContext';
 import { useTranslation } from '../contexts/LanguageContext';
-import { fetchStreamUrl } from '../services/apiService';
+import { fetchStreamUrl, fetchFromTMDB } from '../services/apiService';
 import * as Icons from './Icons';
 import { IMAGE_BASE_URL, BACKDROP_SIZE_MEDIUM } from '../contexts/constants';
 import { translateSrtViaGoogle } from '../services/translationService';
@@ -38,25 +38,282 @@ const formatTime = (seconds: number) => {
     return `${mm}:${ss}`;
 };
 
-const adjustSrtTime = (time: string, offset: number): string => {
-    const match = time.match(/(\d{2}):(\d{2}):(\d{2})[,.](\d{3})/);
-    if (!match) return "00:00:00.000";
+const SidePanel: React.FC<{
+    title: string;
+    onClose: () => void;
+    children: React.ReactNode;
+    show: boolean;
+}> = ({ title, onClose, children, show }) => {
+    const panelRef = useRef<HTMLDivElement>(null);
+    const [isRendered, setIsRendered] = useState(false);
+    const [isAnimatingOut, setIsAnimatingOut] = useState(false);
+    const onCloseRef = useRef(onClose);
+    onCloseRef.current = onClose;
 
-    const [, hh, mm, ss, ms] = match.map(Number);
+    useEffect(() => {
+        if (show) {
+            setIsRendered(true);
+            setIsAnimatingOut(false);
+        } else if (isRendered) {
+            setIsAnimatingOut(true);
+            const timer = setTimeout(() => {
+                setIsRendered(false);
+                setIsAnimatingOut(false);
+            }, 300); // Animation duration
+            return () => clearTimeout(timer);
+        }
+    }, [show, isRendered]);
+
+    // Focus trapping and keyboard navigation handling
+    useEffect(() => {
+        if (isRendered && !isAnimatingOut) {
+            const panelNode = panelRef.current;
+            if (!panelNode) return;
+
+            const focusTimer = setTimeout(() => {
+                const focusableElements = Array.from(
+                    panelNode.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+                ).filter(el => !(el as HTMLElement).hasAttribute('disabled')) as HTMLElement[];
+                
+                if (focusableElements.length > 0) {
+                    focusableElements[0].focus();
+                }
+            }, 100);
+
+            const handleKeyDown = (e: KeyboardEvent) => {
+                e.stopPropagation(); 
+
+                const focusableElements = Array.from(
+                    panelNode.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])')
+                ).filter(el => !(el as HTMLElement).hasAttribute('disabled')) as HTMLElement[];
+                
+                if (focusableElements.length === 0) return;
+
+                const firstElement = focusableElements[0];
+                const lastElement = focusableElements[focusableElements.length - 1];
+                const currentElement = document.activeElement as HTMLElement;
+                const currentIndex = focusableElements.indexOf(currentElement);
+
+                if (e.key === 'Escape') {
+                    onCloseRef.current();
+                } else if (e.key === 'Tab') {
+                    if (e.shiftKey) {
+                        if (document.activeElement === firstElement) {
+                            e.preventDefault();
+                            lastElement.focus();
+                        }
+                    } else {
+                        if (document.activeElement === lastElement) {
+                            e.preventDefault();
+                            firstElement.focus();
+                        }
+                    }
+                } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (currentIndex === -1) { 
+                        firstElement.focus();
+                        return;
+                    }
+                    if (e.key === 'ArrowDown') {
+                        const nextIndex = (currentIndex + 1) % focusableElements.length;
+                        focusableElements[nextIndex]?.focus();
+                    } else if (e.key === 'ArrowUp') {
+                        const prevIndex = (currentIndex - 1 + focusableElements.length) % focusableElements.length;
+                        focusableElements[prevIndex]?.focus();
+                    }
+                }
+            };
+
+            document.addEventListener('keydown', handleKeyDown);
+
+            return () => {
+                clearTimeout(focusTimer);
+                document.removeEventListener('keydown', handleKeyDown);
+            }
+        }
+    }, [isRendered, isAnimatingOut]);
     
-    let totalMs = (hh * 3600 + mm * 60 + ss) * 1000 + ms;
-    totalMs += offset * 1000;
+    if (!isRendered) return null;
+
+    const animationClass = isAnimatingOut ? 'animate-slide-out-right' : 'animate-slide-in-right';
+
+    return (
+        <div
+            ref={panelRef}
+            className={`fixed top-0 right-0 h-full w-full max-w-md bg-black/80 backdrop-blur-lg z-30 p-4 flex flex-col ${animationClass}`}
+            onClick={(e) => e.stopPropagation()}
+        >
+            <header className="flex items-center justify-between mb-4 flex-shrink-0">
+                <button onClick={onClose} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors">
+                    <i className="fa-solid fa-arrow-left text-lg"></i>
+                </button>
+                <h2 className="text-xl font-bold">{title}</h2>
+                <div className="w-10 h-10"></div> {/* Spacer */}
+            </header>
+            <div className="flex-1 overflow-y-auto no-scrollbar">
+                {children}
+            </div>
+        </div>
+    );
+};
+
+const SubtitlesPanel: React.FC<{
+    tracks: { lang: string; url: string; label: string }[],
+    activeLang: string | null,
+    onSelect: (lang: string | null) => void,
+    onClose: () => void,
+    triggerRef: React.RefObject<HTMLElement>,
+    show: boolean,
+}> = ({ tracks, activeLang, onSelect, onClose, triggerRef, show }) => {
+
+    // Return focus on close
+    useEffect(() => {
+        if (!show) {
+            triggerRef.current?.focus();
+        }
+    }, [show, triggerRef]);
+
+    return (
+        <SidePanel title="Subtitles" onClose={onClose} show={show}>
+            <div className="flex flex-col gap-2">
+                <button onClick={() => { onSelect(null); onClose(); }} className={`player-panel-button ${!activeLang ? 'active' : ''}`}>Off</button>
+                {tracks.map(track => (
+                    <button key={track.lang} onClick={() => { onSelect(track.lang); onClose(); }} className={`player-panel-button ${activeLang === track.lang ? 'active' : ''}`}>{track.label}</button>
+                ))}
+            </div>
+        </SidePanel>
+    );
+};
+
+const SettingsPanel: React.FC<{
+    onClose: () => void,
+    triggerRef: React.RefObject<HTMLElement>,
+    playbackRate: number,
+    onRateChange: (rate: number) => void,
+    qualities: string[],
+    activeQuality: string | null,
+    onQualityChange: (quality: string) => void,
+    show: boolean,
+    subtitleSettings: SubtitleSettings;
+    onSubtitleSettingsChange: (settings: Partial<SubtitleSettings>) => void;
+}> = ({ onClose, triggerRef, playbackRate, onRateChange, qualities, activeQuality, onQualityChange, show, subtitleSettings, onSubtitleSettingsChange }) => {
+    const [view, setView] = useState<'main' | 'speed' | 'quality' | 'subtitleSettings'>('main');
+    const { t } = useTranslation();
     
-    if (totalMs < 0) totalMs = 0;
+    useEffect(() => {
+        if (!show) {
+            triggerRef.current?.focus();
+            setTimeout(() => setView('main'), 300); 
+        }
+    }, [show, triggerRef]);
+
+    const renderMain = () => (
+        <div className="flex flex-col gap-2">
+            <button onClick={() => setView('speed')} className="player-panel-button justify-between">
+                <span>{t('playbackSpeed')}</span>
+                <span className="text-zinc-400">{playbackRate === 1 ? t('auto') : `${playbackRate}x`} <i className="fa-solid fa-chevron-right text-xs"></i></span>
+            </button>
+            <button onClick={() => setView('quality')} className="player-panel-button justify-between">
+                <span>{t('quality')}</span>
+                <span className="text-zinc-400">{activeQuality || t('auto')} <i className="fa-solid fa-chevron-right text-xs"></i></span>
+            </button>
+            <button onClick={() => setView('subtitleSettings')} className="player-panel-button justify-between">
+                <span>{t('subtitleSettings')}</span>
+                <span><i className="fa-solid fa-chevron-right text-xs"></i></span>
+            </button>
+        </div>
+    );
     
-    const newMs = totalMs % 1000;
-    let totalSeconds = Math.floor(totalMs / 1000);
-    const newSs = totalSeconds % 60;
-    totalSeconds = Math.floor(totalSeconds / 60);
-    const newMm = totalSeconds % 60;
-    const newHh = Math.floor(totalSeconds / 60);
+    const playbackRates = [0.5, 0.75, 1, 1.25, 1.5, 2];
+
+    const renderSpeed = () => (
+        <div className="flex flex-col gap-2">
+            {playbackRates.map(rate => (
+                <button key={rate} onClick={() => { onRateChange(rate); setView('main'); }} className={`player-panel-button ${playbackRate === rate ? 'active' : ''}`}>
+                    {rate === 1 ? t('auto') : `${rate}x`}
+                </button>
+            ))}
+        </div>
+    );
+
+    const renderQuality = () => (
+        <div className="flex flex-col gap-2">
+            {qualities.map(q => (
+                <button key={q} onClick={() => { onQualityChange(q); setView('main'); }} className={`player-panel-button ${activeQuality === q ? 'active' : ''}`}>
+                    {q}
+                </button>
+            ))}
+        </div>
+    );
     
-    return `${String(newHh).padStart(2, '0')}:${String(newMm).padStart(2, '0')}:${String(newSs).padStart(2, '0')}.${String(newMs).padStart(3, '0')}`;
+    const renderSubtitleSettings = () => (
+        <div className="flex flex-col gap-4">
+            {/* Font Size */}
+            <div className="mb-2">
+                <h4 className="text-sm font-semibold text-zinc-400 mb-2">{t('fontSize')}</h4>
+                <div className="flex flex-wrap gap-2">
+                    {[75, 100, 125, 150, 175, 200].map(size => (
+                        <button key={size} onClick={() => onSubtitleSettingsChange({ fontSize: size })} className={`px-4 py-2 text-sm font-medium rounded-md hover:bg-white/10 transition-colors flex-1 text-center ${subtitleSettings.fontSize === size ? 'bg-white text-black' : 'bg-white/5'}`}>
+                            {size}%
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Background Opacity */}
+            <div className="mb-2">
+                <h4 className="text-sm font-semibold text-zinc-400 mb-2">{t('backgroundOpacity')}</h4>
+                <div className="flex flex-wrap gap-2">
+                     {[0, 25, 50, 75, 100].map(opacity => (
+                        <button key={opacity} onClick={() => onSubtitleSettingsChange({ backgroundOpacity: opacity })} className={`px-4 py-2 text-sm font-medium rounded-md hover:bg-white/10 transition-colors flex-1 text-center ${subtitleSettings.backgroundOpacity === opacity ? 'bg-white text-black' : 'bg-white/5'}`}>
+                            {opacity}%
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Edge Style */}
+            <div className="mb-2">
+                <h4 className="text-sm font-semibold text-zinc-400 mb-2">{t('edgeStyle')}</h4>
+                <div className="flex flex-wrap gap-2">
+                    {(['none', 'drop-shadow', 'outline'] as const).map(style => (
+                        <button key={style} onClick={() => onSubtitleSettingsChange({ edgeStyle: style })} className={`px-4 py-2 text-sm font-medium rounded-md hover:bg-white/10 transition-colors flex-1 text-center ${subtitleSettings.edgeStyle === style ? 'bg-white text-black' : 'bg-white/5'}`}>
+                            {t(style as any)}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Vertical Position */}
+            <div className="mb-2">
+                <h4 className="text-sm font-semibold text-zinc-400 mb-2">{t('verticalPosition')}</h4>
+                <input 
+                    type="range" 
+                    min="5" 
+                    max="50" 
+                    value={subtitleSettings.verticalPosition}
+                    onChange={e => onSubtitleSettingsChange({ verticalPosition: parseInt(e.target.value, 10) })}
+                    className="w-full h-2 bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-[var(--primary)]"
+                />
+            </div>
+        </div>
+    );
+
+    const titles = {
+        main: t('settings'),
+        speed: t('playbackSpeed'),
+        quality: t('quality'),
+        subtitleSettings: t('subtitleSettings')
+    };
+
+    return (
+        <SidePanel title={titles[view]} onClose={() => view === 'main' ? onClose() : setView('main')} show={show}>
+            {view === 'main' && renderMain()}
+            {view === 'speed' && renderSpeed()}
+            {view === 'quality' && renderQuality()}
+            {view === 'subtitleSettings' && renderSubtitleSettings()}
+        </SidePanel>
+    );
 };
 
 const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, initialEpisode, initialTime, initialStreamUrl, onProviderSelected, onStreamFetchStateChange, setVideoNode, serverPreferences, episodes, onEpisodeSelect, selectedProvider }) => {
@@ -66,83 +323,110 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const playerContainerRef = useRef<HTMLDivElement>(null);
-    const progressBarRef = useRef<HTMLDivElement>(null);
-    const hlsRef = useRef<Hls.default | null>(null);
-    const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const lastTap = useRef(0);
     const fetchIdRef = useRef(0);
     const timeOnSwitchRef = useRef(0);
-    // FIX: Using ReturnType ensures the correct timer ID type is used regardless of a browser or Node.js environment.
-    const longPressRef = useRef<{ timer: ReturnType<typeof setTimeout> | null, interval: ReturnType<typeof setInterval> | null, key: string | null }>({ timer: null, interval: null, key: null });
+    
+    const infoPanelRef = useRef<HTMLDivElement>(null);
+    const controlsPanelRef = useRef<HTMLDivElement>(null);
+    const progressBarRef = useRef<HTMLDivElement>(null);
+    const recsPanelRef = useRef<HTMLDivElement>(null);
+    const settingsButtonRef = useRef<HTMLButtonElement>(null);
+    const subtitlesButtonRef = useRef<HTMLButtonElement>(null);
+
 
     const [streamLinks, setStreamLinks] = useState<StreamLink[]>([]);
     const [activeStreamUrl, setActiveStreamUrl] = useState<string | null>(initialStreamUrl || null);
     const [activeQuality, setActiveQuality] = useState<string | null>(null);
+    const [recommendations, setRecommendations] = useState<Movie[]>([]);
     
     const [isPlaying, setIsPlaying] = useState(false);
     const [isBuffering, setIsBuffering] = useState(true);
-    const [showControls, setShowControls] = useState(true);
-    const [isFullscreen, setIsFullscreen] = useState(false);
+    const [isOverlayVisible, setIsOverlayVisible] = useState(true);
+    const [isRecsFocused, setIsRecsFocused] = useState(false);
     const [currentTime, setCurrentTime] = useState(initialTime || 0);
     const [duration, setDuration] = useState(0);
-    const [activePopover, setActivePopover] = useState<'episodes' | 'subtitles' | 'settings' | null>(null);
     const [subtitles, setSubtitles] = useState<SubtitleTrack[]>([]);
     const [vttTracks, setVttTracks] = useState<{ lang: string; url: string; label: string }[]>([]);
     const [activeSubtitleLang, setActiveSubtitleLang] = useState<string | null>(null);
-    const [selectedDubLang, setSelectedDubLang] = useState<'ar' | 'fr' | null>(null);
-    const [isTranslating, setIsTranslating] = useState(false);
-    const [volume, setVolume] = useState(1);
-    const [isMuted, setIsMuted] = useState(false);
-    const defaultSubtitleSettings: SubtitleSettings = { fontSize: 100, backgroundOpacity: 0, edgeStyle: 'outline', verticalPosition: 10, timeOffset: 0 };
-    const [subtitleSettings, setSubtitleSettings] = useState<SubtitleSettings>(() => getScreenSpecificData('subtitleSettings', defaultSubtitleSettings));
     const [activeCues, setActiveCues] = useState<VTTCue[]>([]);
+    const defaultSubtitleSettings: SubtitleSettings = { fontSize: 100, backgroundOpacity: 0, edgeStyle: 'outline', verticalPosition: 10 };
+    const [subtitleSettings, setSubtitleSettings] = useState<SubtitleSettings>(() => getScreenSpecificData('subtitleSettings', defaultSubtitleSettings));
     
+    const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+    const [showSubtitlesPanel, setShowSubtitlesPanel] = useState(false);
+    const [playbackRate, setPlaybackRate] = useState(1);
+
+    const handleSubtitleSettingsChange = (newSettings: Partial<SubtitleSettings>) => {
+        setSubtitleSettings(prev => {
+            const updated = { ...prev, ...newSettings };
+            setScreenSpecificData('subtitleSettings', updated);
+            return updated;
+        });
+    };
+
     const combinedRef = useCallback((node: HTMLVideoElement | null) => {
         (videoRef as React.MutableRefObject<HTMLVideoElement | null>).current = node;
         if (setVideoNode) setVideoNode(node);
     }, [setVideoNode]);
 
-    const isPopoverOpen = activePopover !== null;
-    const isPopoverOpenRef = useRef(isPopoverOpen);
-    isPopoverOpenRef.current = isPopoverOpen;
+    // Effect to handle initial and subsequent focusing when controls become visible
+    useEffect(() => {
+        if (isOverlayVisible && !showSettingsPanel && !showSubtitlesPanel) {
+            const focusTimer = setTimeout(() => {
+                const playerContainer = playerContainerRef.current;
+                if (!playerContainer) return;
 
-    const hideControls = useCallback(() => { if (!videoRef.current?.paused && !isPopoverOpenRef.current) { setShowControls(false); setActivePopover(null); } }, []);
-    const resetControlsTimeout = useCallback(() => { if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current); setShowControls(true); controlsTimeoutRef.current = setTimeout(hideControls, 5000); }, [hideControls]);
+                const activeElement = document.activeElement;
+                const isFocusOutsidePlayer = !activeElement || activeElement === document.body || !playerContainer.contains(activeElement);
 
-    const seekVideo = useCallback((amount: number) => {
-        if (videoRef.current) {
-            videoRef.current.currentTime = Math.max(0, Math.min(videoRef.current.duration, videoRef.current.currentTime + amount));
+                if (isFocusOutsidePlayer) {
+                    const titleElement = infoPanelRef.current?.querySelector<HTMLElement>('.focusable');
+                    titleElement?.focus();
+                }
+            }, 150);
+            return () => clearTimeout(focusTimer);
         }
-    }, []);
+    }, [isOverlayVisible, showSettingsPanel, showSubtitlesPanel]);
 
-    // Effect 1: Fetch the stream URL and subtitles info
+    useEffect(() => {
+        if(videoRef.current) {
+            videoRef.current.playbackRate = playbackRate;
+        }
+    }, [playbackRate]);
+
+    // Effect 1: Fetch the stream URL and other data
     useEffect(() => {
         if (initialStreamUrl) {
             setActiveStreamUrl(initialStreamUrl);
-            return;
         }
-        const fetchUrl = async () => {
+        const fetchData = async () => {
             const fetchId = ++fetchIdRef.current;
             onStreamFetchStateChange(true);
             setIsBuffering(true);
-            setActiveStreamUrl(null);
+            if (!initialStreamUrl) setActiveStreamUrl(null);
             setSubtitles([]);
             setVttTracks([]);
             
             try {
-                const data = await fetchStreamUrl(item, itemType, initialSeason, initialEpisode?.episode_number, selectedProvider || undefined, serverPreferences, selectedDubLang);
-                if (fetchIdRef.current !== fetchId) return;
+                // Fetch recommendations
+                const recsData = await fetchFromTMDB(`/${itemType}/${item.id}/recommendations`);
+                setRecommendations(recsData.results.filter((m: Movie) => m.backdrop_path));
 
-                if (data.links && data.links.length > 0) {
-                    setStreamLinks(data.links);
-                    const initialLink = data.links[0];
-                    setActiveStreamUrl(initialLink.url);
-                    setActiveQuality(initialLink.quality);
+                // Fetch stream
+                 if (!initialStreamUrl) {
+                    const data = await fetchStreamUrl(item, itemType, initialSeason, initialEpisode?.episode_number, selectedProvider || undefined, serverPreferences);
+                    if (fetchIdRef.current !== fetchId) return;
 
-                    if (data.subtitles) setSubtitles(data.subtitles);
-                    onProviderSelected(data.provider);
-                } else {
-                    throw new Error(t('noStreamLinks'));
+                    if (data.links && data.links.length > 0) {
+                        setStreamLinks(data.links);
+                        const initialLink = data.links[0];
+                        setActiveStreamUrl(initialLink.url);
+                        setActiveQuality(initialLink.quality);
+                        if (data.subtitles) setSubtitles(data.subtitles);
+                        onProviderSelected(data.provider);
+                    } else {
+                        throw new Error(t('noStreamLinks'));
+                    }
                 }
             } catch (error: any) {
                 if (fetchIdRef.current === fetchId) {
@@ -155,10 +439,10 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
             }
         };
 
-        fetchUrl();
-    }, [item.id, initialEpisode?.id, selectedProvider, selectedDubLang, serverPreferences.join()]);
+        fetchData();
+    }, [item.id, initialEpisode?.id, selectedProvider, serverPreferences.join()]);
 
-    // Effect 2: Play the video as soon as the URL is available
+    // Effect 2: Play the video
     useEffect(() => {
         const video = videoRef.current;
         if (!video || !activeStreamUrl) {
@@ -166,46 +450,46 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
             return;
         }
 
-        if (hlsRef.current) hlsRef.current.destroy();
-        
-        video.pause();
-        video.removeAttribute('src');
-        video.load();
-
+        const hls = new Hls.default();
         const savedTime = timeOnSwitchRef.current > 0 ? timeOnSwitchRef.current : (initialTime || 0);
         timeOnSwitchRef.current = 0;
 
-        if (activeStreamUrl.includes('.m3u8')) {
-            if (Hls.default.isSupported()) {
-                const hls = new Hls.default();
-                hlsRef.current = hls;
-                hls.loadSource(activeStreamUrl);
-                hls.attachMedia(video);
-                hls.on(Hls.default.Events.MANIFEST_PARSED, () => {
-                    video.currentTime = savedTime;
-                    video.play().catch(() => {});
-                });
-            }
+        if (activeStreamUrl.includes('.m3u8') && Hls.default.isSupported()) {
+            hls.loadSource(activeStreamUrl);
+            hls.attachMedia(video);
+            hls.on(Hls.default.Events.MANIFEST_PARSED, () => {
+                video.currentTime = savedTime;
+                video.play().catch(() => {});
+            });
         } else {
             video.src = activeStreamUrl;
-            const handleReadyToPlay = () => {
+            video.addEventListener('loadeddata', () => {
                 video.currentTime = savedTime;
                 video.play().catch(error => console.warn("Autoplay was prevented.", error));
-            };
-            video.addEventListener('loadeddata', handleReadyToPlay, { once: true });
+            }, { once: true });
         }
 
-        return () => {
-            if (hlsRef.current) hlsRef.current.destroy();
-            if (video) {
-                video.pause();
-                video.removeAttribute('src');
-                video.load();
-            }
-        };
+        return () => hls.destroy();
     }, [activeStreamUrl]);
+
+    // Effect for handling quality changes
+    useEffect(() => {
+        // Do nothing if quality is not selected, video isn't ready, or there are no links
+        if (!activeQuality || !videoRef.current || streamLinks.length === 0) return;
+
+        const newLink = streamLinks.find(link => link.quality === activeQuality);
+
+        // Check if a new link is found and it's different from the current one
+        if (newLink && newLink.url !== activeStreamUrl) {
+            console.log(`Changing quality to: ${activeQuality}`);
+            // Save current time to resume playback smoothly
+            timeOnSwitchRef.current = videoRef.current.currentTime;
+            // Set the new stream URL, which will trigger the playback effect
+            setActiveStreamUrl(newLink.url);
+        }
+    }, [activeQuality, streamLinks, activeStreamUrl]);
     
-    // Effect 3: Process subtitles in the background
+    // Effect 3: Process subtitles
     useEffect(() => {
         let active = true;
         let createdUrls: string[] = [];
@@ -213,7 +497,7 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
             const srtTimestampLineRegex = /(\d{2}:\d{2}:\d{2}[,.]\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}[,.]\d{3})/g;
             const processSrtToVtt = (srtText: string) => {
                 let vttContent = "WEBVTT\n\n";
-                vttContent += srtText.replace(/\r/g, '').replace(srtTimestampLineRegex, (_, s, e) => `${adjustSrtTime(s, 0)} --> ${adjustSrtTime(e, 0)}`);
+                vttContent += srtText.replace(/\r/g, '').replace(srtTimestampLineRegex, (_, s, e) => `${s.replace(',', '.')} --> ${e.replace(',', '.')}`);
                 const blob = new Blob([vttContent], { type: 'text/vtt' });
                 const vttUrl = URL.createObjectURL(blob);
                 createdUrls.push(vttUrl);
@@ -227,9 +511,7 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
                     const srtText = await res.text();
                     const vttUrl = processSrtToVtt(srtText);
                     newTracks.push({ lang: sub.language, url: vttUrl, label: sub.display });
-                } catch (e) {
-                    console.error(`Failed to process subtitle: ${sub.display}`, e);
-                }
+                } catch (e) { console.error(`Failed to process subtitle: ${sub.display}`, e); }
             }
             if (active) setVttTracks(newTracks);
         };
@@ -247,33 +529,22 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
         let activeTrack: TextTrack | null = null;
         const onCueChange = () => {
             if (activeTrack && activeTrack.activeCues) {
-                // FIX: Correctly convert TextTrackCueList to VTTCue[]
                 setActiveCues(Array.from(activeTrack.activeCues) as VTTCue[]);
-            } else {
-                setActiveCues([]);
-            }
+            } else { setActiveCues([]); }
         };
 
         for (let i = 0; i < video.textTracks.length; i++) {
             const track = video.textTracks[i];
-            track.mode = 'hidden'; // Disable native rendering for all tracks
-            if (track.language === activeSubtitleLang) {
-                activeTrack = track;
-            }
+            track.mode = 'hidden';
+            if (track.language === activeSubtitleLang) activeTrack = track;
         }
 
         if (activeTrack) {
-            onCueChange(); // Get initial cues
+            onCueChange();
             activeTrack.addEventListener('cuechange', onCueChange);
-        } else {
-            setActiveCues([]);
-        }
+        } else { setActiveCues([]); }
 
-        return () => {
-            if (activeTrack) {
-                activeTrack.removeEventListener('cuechange', onCueChange);
-            }
-        };
+        return () => { if (activeTrack) activeTrack.removeEventListener('cuechange', onCueChange); };
     }, [activeSubtitleLang, vttTracks]);
 
     useEffect(() => {
@@ -292,14 +563,10 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
         const onTimeUpdate = () => setCurrentTime(video.currentTime);
         const onDurationChange = () => setDuration(video.duration || 0);
         const onWaiting = () => setIsBuffering(true);
-        const onPlaying = () => { setIsBuffering(false); resetControlsTimeout(); };
-        const onVolumeChange = () => { if (video) { setIsMuted(video.muted); setVolume(video.volume); } };
-        const handleFullscreenChange = () => setIsFullscreen(!!document.fullscreenElement);
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        const onPlaying = () => { setIsBuffering(false); };
         video.addEventListener('play', onPlay); video.addEventListener('pause', onPause);
         video.addEventListener('timeupdate', onTimeUpdate); video.addEventListener('durationchange', onDurationChange);
         video.addEventListener('waiting', onWaiting); video.addEventListener('playing', onPlaying);
-        video.addEventListener('volumechange', onVolumeChange);
         
         setIsPlaying(!video.paused);
         setCurrentTime(video.currentTime);
@@ -310,145 +577,150 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
             video.removeEventListener('play', onPlay); video.removeEventListener('pause', onPause);
             video.removeEventListener('timeupdate', onTimeUpdate); video.removeEventListener('durationchange', onDurationChange);
             video.removeEventListener('waiting', onWaiting); video.removeEventListener('playing', onPlaying);
-            video.removeEventListener('volumechange', onVolumeChange);
-            document.removeEventListener('fullscreenchange', handleFullscreenChange);
         };
-    }, [resetControlsTimeout]);
+    }, []);
 
     const togglePlay = useCallback(() => {
+        if (showSettingsPanel || showSubtitlesPanel) return;
         const video = videoRef.current;
         if (!video) return;
+    
         if (video.paused) {
-             video.play().catch(e => setToast({ message: t('failedToLoadVideo'), type: "error" }));
-        }
-        else {
-             video.pause();
-        }
-        resetControlsTimeout();
-    }, [resetControlsTimeout, setToast, t]);
-
-    const handleContainerClick = useCallback((e: React.MouseEvent) => {
-        const target = e.target as HTMLElement;
-        if (target.closest('.controls-bar') || target.closest('.popover-content')) {
-            resetControlsTimeout(); return;
-        };
-        setShowControls(s => !s);
-        if(showControls) {
-           if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+            video.play().catch(e => setToast({ message: t('failedToLoadVideo'), type: "error" }));
         } else {
-            resetControlsTimeout();
+            video.pause();
         }
-    }, [resetControlsTimeout, showControls]);
+    }, [setToast, t, showSettingsPanel, showSubtitlesPanel]);
 
-    const handleDoubleTap = (e: React.TouchEvent) => {
-        const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-        const tapX = e.touches[0].clientX - rect.left;
-        const width = rect.width;
-        const now = new Date().getTime();
-        if ((now - lastTap.current) < 400) {
-            e.preventDefault();
-            if (tapX < width / 3) seekVideo(-10);
-            else if (tapX > (width * 2) / 3) seekVideo(10);
-            else togglePlay();
+    // Keyboard navigation and visibility control
+     useEffect(() => {
+        if (showSettingsPanel || showSubtitlesPanel) {
+            return;
         }
-        lastTap.current = now;
-    };
-    
-    const toggleFullscreen = useCallback(() => {
-        const elem = playerContainerRef.current;
-        if (!elem) return;
-        if (!document.fullscreenElement) {
-             elem.requestFullscreen().catch(err => console.error(`Fullscreen error: ${err.message}`));
-        } else {
-             document.exitFullscreen();
-        }
-        resetControlsTimeout();
-    }, [resetControlsTimeout]);
-
-    const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const video = videoRef.current;
-        if (video) {
-            const newVolume = parseFloat(e.target.value);
-            video.volume = newVolume;
-            if (newVolume > 0 && video.muted) video.muted = false;
-        }
-    };
-    
-    const toggleMute = useCallback(() => {
-        const video = videoRef.current;
-        if (video) video.muted = !video.muted;
-        resetControlsTimeout();
-    }, [resetControlsTimeout]);
-
-    // Keyboard navigation and controls
-    useEffect(() => {
-        const handleKeyUp = (e: KeyboardEvent) => {
-            if (longPressRef.current.key && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
-                if (longPressRef.current.timer) clearTimeout(longPressRef.current.timer);
-                if (longPressRef.current.interval) clearInterval(longPressRef.current.interval);
-                longPressRef.current = { timer: null, interval: null, key: null };
-            }
-        };
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (isPopoverOpenRef.current) return;
-            resetControlsTimeout();
-            const { key } = e;
-            const activeElement = document.activeElement as HTMLElement;
+            if (!isOverlayVisible) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsOverlayVisible(true);
+                } else if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    togglePlay();
+                }
+                return;
+            }
+            
+            const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', ' '];
+             if (!arrowKeys.includes(e.key) || (document.activeElement?.tagName === 'INPUT')) return;
+             
+            e.stopPropagation();
 
-            if (activeElement === progressBarRef.current && (key === 'ArrowLeft' || key === 'ArrowRight')) {
+            const active = document.activeElement as HTMLElement;
+
+            const infoFocusables = Array.from(infoPanelRef.current?.querySelectorAll('.focusable') || []) as HTMLElement[];
+            const progressFocusable = progressBarRef.current;
+            const controlsFocusables = Array.from(controlsPanelRef.current?.querySelectorAll('.focusable') || []) as HTMLElement[];
+            const recsFocusables = Array.from(recsPanelRef.current?.querySelectorAll('.focusable') || []) as HTMLElement[];
+
+            if (e.key === 'ArrowUp' && (infoFocusables.includes(active) || controlsFocusables.includes(active))) {
                 e.preventDefault();
-                if (longPressRef.current.key === key) return; // Key already held down
-                longPressRef.current.key = key;
-                
-                seekVideo(key === 'ArrowRight' ? 5 : -5); // Initial seek
-                
-                longPressRef.current.timer = setTimeout(() => {
-                    longPressRef.current.interval = setInterval(() => {
-                        seekVideo(key === 'ArrowRight' ? 10 : -10); // Accelerated seek
-                    }, 150);
-                }, 400);
+                setIsOverlayVisible(false);
+                if (document.activeElement instanceof HTMLElement) {
+                    document.activeElement.blur();
+                }
                 return;
             }
 
-            if (key === ' ' && !['BUTTON', 'INPUT', 'DIV'].includes(activeElement.tagName)) {
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
                 e.preventDefault();
-                togglePlay();
+            }
+
+            const seek = (offset: number) => {
+                const video = videoRef.current;
+                if (video) {
+                    video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + offset));
+                }
+            };
+
+            switch (e.key) {
+                case 'ArrowUp':
+                    if (recsFocusables.includes(active)) {
+                        progressFocusable?.focus();
+                        setIsRecsFocused(false);
+                    } else if (active === progressFocusable) {
+                        infoFocusables[0]?.focus();
+                    }
+                    break;
+                case 'ArrowDown':
+                    if (infoFocusables.includes(active) || controlsFocusables.includes(active)) {
+                        progressFocusable?.focus();
+                        setIsRecsFocused(false);
+                    } else if (active === progressFocusable) {
+                        recsFocusables[0]?.focus();
+                        setIsRecsFocused(true);
+                    }
+                    break;
+                case 'ArrowRight':
+                    if (infoFocusables.includes(active)) {
+                        controlsFocusables[0]?.focus();
+                    } else if (controlsFocusables.includes(active)) {
+                        const currentIndex = controlsFocusables.indexOf(active);
+                        if (currentIndex < controlsFocusables.length - 1) {
+                            controlsFocusables[currentIndex + 1].focus();
+                        }
+                    } else if (active === progressFocusable) {
+                        seek(5);
+                    } else if (recsFocusables.includes(active)) {
+                        const currentIndex = recsFocusables.indexOf(active);
+                        if (currentIndex < recsFocusables.length - 1) {
+                            recsFocusables[currentIndex + 1].focus();
+                        }
+                    }
+                    break;
+                case 'ArrowLeft':
+                    if (controlsFocusables.includes(active)) {
+                        const currentIndex = controlsFocusables.indexOf(active);
+                        if (currentIndex > 0) {
+                            controlsFocusables[currentIndex - 1].focus();
+                        } else {
+                            infoFocusables[0]?.focus();
+                        }
+                    } else if (active === progressFocusable) {
+                        seek(-5);
+                    } else if (recsFocusables.includes(active)) {
+                        const currentIndex = recsFocusables.indexOf(active);
+                        if (currentIndex > 0) {
+                            recsFocusables[currentIndex - 1].focus();
+                        }
+                    }
+                    break;
             }
         };
-
+        
         document.addEventListener('keydown', handleKeyDown);
-        document.addEventListener('keyup', handleKeyUp);
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
-            document.removeEventListener('keyup', handleKeyUp);
-            if (longPressRef.current.timer) clearTimeout(longPressRef.current.timer);
-            if (longPressRef.current.interval) clearInterval(longPressRef.current.interval);
         };
-    }, [seekVideo, togglePlay, resetControlsTimeout]);
+    }, [isOverlayVisible, showSettingsPanel, showSubtitlesPanel, togglePlay]);
 
-
-    const nextEpisode = useMemo(() => {
-        if (!initialEpisode || !episodes || episodes.length === 0) return null;
-        const currentIndex = episodes.findIndex(ep => ep.id === initialEpisode.id);
-        if (currentIndex > -1 && currentIndex < episodes.length - 1) return episodes[currentIndex + 1];
-        return null;
-    }, [initialEpisode, episodes]);
-    const handlePlayNext = useCallback(() => { if (nextEpisode) onEpisodeSelect(nextEpisode); }, [nextEpisode, onEpisodeSelect]);
-    const handleDubLangChange = (lang: 'ar' | 'fr' | null) => { if (lang !== selectedDubLang) { setActiveSubtitleLang(null); setSelectedDubLang(lang); } };
-    
-    const handleQualityChange = (link: StreamLink) => {
-        if (videoRef.current && activeStreamUrl !== link.url) {
-            timeOnSwitchRef.current = videoRef.current.currentTime;
-            setActiveStreamUrl(link.url);
-            setActiveQuality(link.quality);
-        }
-        setActivePopover(null);
+    const handleRecommendationPlay = (recItem: Movie) => {
+        const mediaType = recItem.media_type || (recItem.title ? 'movie' : 'tv');
+        navigate('/player', { 
+            state: { 
+                item: recItem, 
+                type: mediaType, 
+                season: null,
+                episode: null,
+            },
+            replace: true 
+        });
     };
 
     return (
-        <div ref={playerContainerRef} className="player-container-scope relative w-full h-full bg-black flex items-center justify-center overflow-hidden cursor-none" onMouseMove={resetControlsTimeout}>
-            <video ref={combinedRef} className="w-full h-full object-contain" playsInline autoPlay preload="metadata" onClick={handleContainerClick} onTouchStart={handleDoubleTap}>
+        <div ref={playerContainerRef} className="player-container-scope relative w-full h-full bg-black flex items-center justify-center overflow-hidden" onClick={togglePlay}>
+            <video ref={combinedRef} className="w-full h-full object-contain" playsInline autoPlay preload="metadata">
              {vttTracks.map(track => (
                     <track key={track.lang} kind="subtitles" srcLang={track.lang} src={track.url} label={track.label} default={activeSubtitleLang === track.lang} />
                 ))}
@@ -457,7 +729,7 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
             <div 
                 className="absolute left-1/2 -translate-x-1/2 w-full max-w-4xl px-4 text-center pointer-events-none z-10 transition-all duration-200"
                 style={{
-                    bottom: `${subtitleSettings.verticalPosition + (showControls ? 12 : 5)}%`,
+                    bottom: `${subtitleSettings.verticalPosition + (isOverlayVisible ? 20 : 5)}%`,
                     fontSize: `${subtitleSettings.fontSize / 100 * 1.5}rem`,
                     lineHeight: '1.4',
                 }}
@@ -485,52 +757,60 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
             )}
             
             <Controls
-                showControls={showControls} isPlaying={isPlaying} currentTime={currentTime} duration={duration}
-                isFullscreen={isFullscreen} togglePlay={togglePlay} handleSeek={(forward: boolean) => seekVideo(forward ? 10 : -10)} toggleFullscreen={toggleFullscreen}
-                activePopover={activePopover} setActivePopover={setActivePopover} navigate={navigate} t={t} item={item}
-                episode={initialEpisode} season={initialSeason} progressBarRef={progressBarRef} 
-                nextEpisode={nextEpisode} handlePlayNext={handlePlayNext} vttTracks={vttTracks} 
-                activeSubtitleLang={activeSubtitleLang} handleSubtitleChange={(lang: string | null) => { setActiveSubtitleLang(lang); setActivePopover(null); }}
-                isTranslating={isTranslating} episodes={episodes} onEpisodeSelect={onEpisodeSelect} volume={volume} isMuted={isMuted} 
-                onVolumeChange={handleVolumeChange} onToggleMute={toggleMute} subtitleSettings={subtitleSettings}
-                onUpdateSubtitleSettings={(updater) => { setSubtitleSettings(prev => { const next = updater(prev); setScreenSpecificData('subtitleSettings', next); return next; }); }}
-                selectedDubLang={selectedDubLang} handleDubLangChange={handleDubLangChange}
-                streamLinks={streamLinks} activeQuality={activeQuality} handleQualityChange={handleQualityChange}
+                showControls={isOverlayVisible} isPlaying={isPlaying} currentTime={currentTime} duration={duration}
+                togglePlay={togglePlay}
+                navigate={navigate} t={t} item={item} episode={initialEpisode}
+                onSettingsClick={() => { setShowSettingsPanel(p => !p); setShowSubtitlesPanel(false); }}
+                onSubtitlesClick={() => { setShowSubtitlesPanel(p => !p); setShowSettingsPanel(false); }}
+                settingsButtonRef={settingsButtonRef}
+                subtitlesButtonRef={subtitlesButtonRef}
+                recommendations={recommendations}
+                onRecommendationClick={handleRecommendationPlay}
+                infoPanelRef={infoPanelRef}
+                controlsPanelRef={controlsPanelRef}
+                progressBarRef={progressBarRef}
+                recsPanelRef={recsPanelRef}
+                isRecsFocused={isRecsFocused}
+            />
+
+            <SubtitlesPanel
+                show={showSubtitlesPanel}
+                tracks={vttTracks}
+                activeLang={activeSubtitleLang}
+                onSelect={setActiveSubtitleLang}
+                onClose={() => setShowSubtitlesPanel(false)}
+                triggerRef={subtitlesButtonRef}
+            />
+
+            <SettingsPanel
+                show={showSettingsPanel}
+                onClose={() => setShowSettingsPanel(false)}
+                triggerRef={settingsButtonRef}
+                playbackRate={playbackRate}
+                onRateChange={setPlaybackRate}
+                qualities={streamLinks.map(l => l.quality)}
+                activeQuality={activeQuality}
+                onQualityChange={setActiveQuality}
+                subtitleSettings={subtitleSettings}
+                onSubtitleSettingsChange={handleSubtitleSettingsChange}
             />
         </div>
     );
 };
 
 const Controls: React.FC<any> = ({
-    showControls, isPlaying, currentTime, duration, isFullscreen,
-    togglePlay, handleSeek, toggleFullscreen,
-    activePopover, setActivePopover, navigate, t, item, episode, season, progressBarRef,
-    nextEpisode, handlePlayNext,
-    vttTracks, activeSubtitleLang, handleSubtitleChange, isTranslating,
-    episodes, onEpisodeSelect,
-    volume, isMuted, onVolumeChange, onToggleMute,
-    subtitleSettings, onUpdateSubtitleSettings,
-    selectedDubLang, handleDubLangChange,
-    streamLinks, activeQuality, handleQualityChange
+    showControls, isPlaying, currentTime, duration,
+    togglePlay, navigate, t, item, episode,
+    onSettingsClick, onSubtitlesClick,
+    settingsButtonRef, subtitlesButtonRef,
+    recommendations, onRecommendationClick,
+    infoPanelRef, controlsPanelRef, progressBarRef, recsPanelRef,
+    isRecsFocused
 }) => {
     
-    useEffect(() => {
-        const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'ArrowLeft') {
-                e.preventDefault();
-                e.stopPropagation();
-                setActivePopover(null);
-            }
-        };
-        if (activePopover) {
-            document.addEventListener('keydown', handleKeyDown);
-        }
-        return () => document.removeEventListener('keydown', handleKeyDown);
-    }, [activePopover, setActivePopover]);
-
-
     const handleProgressInteraction = (e: React.MouseEvent | React.TouchEvent) => {
         if (!progressBarRef.current || duration === 0) return;
+        e.stopPropagation();
         const event = 'touches' in e ? e.touches[0] : e;
         const rect = progressBarRef.current.getBoundingClientRect();
         const clickX = event.clientX - rect.left;
@@ -541,225 +821,73 @@ const Controls: React.FC<any> = ({
         const video = (progressBarRef.current.closest('.player-container-scope')?.querySelector('video'));
         if(video) video.currentTime = newTime;
     };
-
-    const handleProgressClick = (e: React.MouseEvent) => { handleProgressInteraction(e); };
-    const handleProgressDrag = (e: React.MouseEvent) => { if (e.buttons !== 1) return; handleProgressInteraction(e); };
-    const handlePopoverToggle = (popoverName: 'episodes' | 'subtitles' | 'settings') => { setActivePopover((p: any) => p === popoverName ? null : popoverName); };
-
-    const episodeTitle = episode ? `S${season}:E${episode.episode_number} ${episode.name}` : '';
-    const remainingTime = duration > 0 ? duration - currentTime : 0;
+    
+    const title = item.title || item.name || '';
+    const subtitle = `Sky Sports Premier Leagu... • 200K views • 12 hr ago`;
 
     return (
-        <div className={`controls-bar absolute inset-0 text-white transition-opacity duration-300 ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/50"></div>
-            <div className="absolute top-0 left-0 right-0 p-4 flex justify-between items-center pointer-events-auto">
-                <button onClick={() => navigate(-1)} className="w-10 h-10 text-xl focusable transition-transform duration-200 ease-in-out hover:scale-110"><i className="fas fa-arrow-left text-2xl"></i></button>
-            </div>
-            <div className="absolute bottom-0 left-0 right-0 p-4 lg:p-6 pointer-events-auto flex flex-col gap-1">
-                 <div className="flex items-center gap-x-3 text-sm font-mono">
-                     <div ref={progressBarRef} tabIndex={0} onClick={handleProgressClick} onMouseMove={handleProgressDrag} className="w-full flex items-center cursor-pointer group h-5 focusable">
-                        <div className="relative w-full bg-white/20 rounded-full transition-all duration-200 h-1.5 group-hover:h-2.5 group-focus-within:h-2.5">
-                            <div className="absolute h-full bg-[var(--primary)] rounded-full" style={{ width: `${(currentTime / duration) * 100}%` }} />
-                            <div className="absolute top-1/2 -translate-y-1/2 bg-[var(--primary)] rounded-full -translate-x-1/2 transition-transform duration-200 z-10 w-3.5 h-3.5 scale-0 group-hover:scale-125 group-focus-within:scale-125" style={{ left: `${(currentTime / duration) * 100}%` }} />
-                        </div>
+        <div className={`absolute inset-x-0 bottom-0 text-white transition-opacity duration-300 transition-transform duration-300 ease-in-out flex flex-col ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'} ${isRecsFocused ? 'translate-y-0' : 'translate-y-28'}`} onClick={(e) => e.stopPropagation()}>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent pointer-events-none"></div>
+            
+            <div className="relative p-4 lg:p-6 pb-8 lg:pb-10 flex flex-col gap-4">
+                <div className="flex items-end justify-between gap-4">
+                    {/* Left Info Panel */}
+                    <div ref={infoPanelRef} className="bg-white/10 p-5 rounded-lg max-w-lg focus-within:bg-white/90 focus-within:text-black transition-colors duration-300">
+                        <h1 tabIndex={0} className="text-2xl font-bold focusable outline-none">{title}</h1>
+                        <p className="text-base mt-1">{subtitle}</p>
                     </div>
-                    <span className="text-sm w-20 text-center">-{formatTime(remainingTime)}</span>
-                 </div>
-                 <div className="flex items-center justify-between gap-x-2">
-                    <div className="flex items-center gap-x-2 md:gap-x-4">
-                        <button onClick={togglePlay} className="text-4xl w-14 h-14 flex items-center justify-center focusable transition-transform duration-200 ease-in-out hover:scale-110"><i className={`fas ${isPlaying ? 'fa-pause' : 'fa-play'}`}></i></button>
-                        <button onClick={() => handleSeek(false)} className="text-xl w-8 h-8 flex items-center justify-center focusable transition-transform duration-200 ease-in-out hover:scale-110"><Icons.RewindIcon className="w-8 h-8" /></button>
-                        <button onClick={() => handleSeek(true)} className="text-xl w-8 h-8 flex items-center justify-center focusable transition-transform duration-200 ease-in-out hover:scale-110"><Icons.ForwardIcon className="w-8 h-8" /></button>
-                        <div className="relative group flex items-center">
-                            <button onClick={onToggleMute} className="text-2xl w-10 h-10 flex items-center justify-center focusable transition-transform duration-200 ease-in-out hover:scale-110">
-                                {isMuted || volume === 0 ? <Icons.VolumeMuteIcon className="w-8 h-8" /> : <Icons.VolumeHighIcon className="w-8 h-8" />}
-                            </button>
-                            <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 w-8 h-32 p-2 bg-black/60 rounded-lg flex-col items-center justify-center hidden group-hover:flex backdrop-blur-sm">
-                                <input type="range" min="0" max="1" step="0.05" value={isMuted ? 0 : volume} onChange={onVolumeChange} className="w-24 h-1 appearance-none cursor-pointer [&::-webkit-slider-runnable-track]:rounded-full [&::-webkit-slider-runnable-track]:bg-white/30 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white" style={{ writingMode: 'vertical-lr', WebkitAppearance: 'slider-vertical' }} />
-                            </div>
-                        </div>
-                        <div className="text-lg text-zinc-100 font-bold ml-4 hidden md:block truncate max-w-sm lg:max-w-lg">{item.title || item.name}{episodeTitle && `: ${episodeTitle}`}</div>
-                    </div>
-                    <div className="flex items-center gap-x-3 md:gap-x-4 text-2xl">
-                        {nextEpisode && <button onClick={handlePlayNext} title={t('nextEpisode')} className="focusable transition-transform duration-200 ease-in-out hover:scale-110"><i className="fas fa-forward-step"></i></button>}
-                        {item.media_type === 'tv' && <button onClick={() => handlePopoverToggle('episodes')} title={t('episodes')} className="focusable transition-transform duration-200 ease-in-out hover:scale-110"><i className="fas fa-layer-group"></i></button>}
-                        <button onClick={() => handlePopoverToggle('subtitles')} title={t('subtitles')} className="focusable transition-transform duration-200 ease-in-out hover:scale-110"><i className="far fa-closed-captioning"></i></button>
-                        <button onClick={() => handlePopoverToggle('settings')} title={t('settings')} className="focusable transition-transform duration-200 ease-in-out hover:scale-110"><Icons.SettingsIcon className="w-7 h-7" /></button>
-                        <button onClick={toggleFullscreen} className="focusable transition-transform duration-200 ease-in-out hover:scale-110">
-                            {isFullscreen ? <Icons.ExitFullscreenIcon className="w-7 h-7" /> : <Icons.EnterFullscreenIcon className="w-7 h-7" />}
-                        </button>
+
+                    {/* Right Controls Panel */}
+                    <div ref={controlsPanelRef} className="flex items-center gap-2">
+                        <button ref={subtitlesButtonRef} onClick={onSubtitlesClick} className="player-control-button focusable"><Icons.CCIcon className="w-6 h-6"/></button>
+                        <button className="player-control-button focusable"><Icons.LikeIcon className="w-6 h-6"/></button>
+                        <button className="player-control-button focusable"><Icons.DislikeIcon className="w-6 h-6"/></button>
+                        <button className="player-control-button focusable"><Icons.AddToPlaylistIcon className="w-6 h-6"/></button>
+                        <button ref={settingsButtonRef} onClick={onSettingsClick} className="player-control-button focusable"><Icons.SettingsIcon className="w-6 h-6"/></button>
                     </div>
                 </div>
-            </div>
-            {activePopover === 'episodes' && (
-                <SideSheet onClose={() => setActivePopover(null)} title={t('episodes')}>
-                    <div className="flex flex-col gap-4">
-                        {episodes.map((ep: Episode) => (
-                          <div key={ep.id} className={`flex items-start gap-4 p-2 rounded-lg cursor-pointer ${episode && ep.id === episode.id ? 'bg-zinc-700' : 'hover:bg-zinc-800'}`} onClick={() => onEpisodeSelect(ep)}>
-                            <span className="text-xl text-zinc-400 font-bold w-8 text-center">{ep.episode_number}</span>
-                            <div className="relative flex-shrink-0 w-36 h-20 overflow-hidden rounded-md">
-                               <img src={ep.still_path ? `${IMAGE_BASE_URL}w300${ep.still_path}` : `${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${item.backdrop_path}`} alt={ep.name} className="object-cover w-full h-full" />
-                            </div>
-                            <div className="flex-1">
-                              <h4 className="font-semibold text-sm leading-tight">{ep.name}</h4>
-                              <p className="text-xs text-zinc-400 line-clamp-2 mt-1">{ep.overview}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                </SideSheet>
-            )}
-            {activePopover === 'subtitles' && (
-                <SideSheet onClose={() => setActivePopover(null)} title={t('subtitles')}>
-                    <div className="space-y-2">
-                        <h4 className="text-sm font-semibold opacity-80">{t('subtitles')}</h4>
-                        <div className="flex flex-col gap-1">
-                            <button onClick={() => handleSubtitleChange(null)} className={`text-left px-3 py-2 rounded-md ${!activeSubtitleLang ? 'bg-white/10' : 'hover:bg-white/5'}`}>{t('off')}</button>
-                            {vttTracks.map((sub: any) => (
-                                <button key={sub.lang} onClick={() => handleSubtitleChange(sub.lang)} className={`text-left px-3 py-2 rounded-md ${activeSubtitleLang === sub.lang ? 'bg-white/10' : 'hover:bg-white/5'}`}>{sub.label}</button>
+
+                {/* Progress Bar & Timestamps */}
+                <div className="w-full">
+                    <div 
+                        ref={progressBarRef} 
+                        tabIndex={0} 
+                        onClick={handleProgressInteraction} 
+                        onMouseMove={e => e.buttons === 1 && handleProgressInteraction(e)} 
+                        className="w-full flex items-center cursor-pointer group h-4 focusable progress-bar-focusable"
+                    >
+                        <div className="relative w-full bg-white/30 rounded-full transition-all duration-200 h-1.5 group-hover:h-2.5 group-focus-within:h-2.5">
+                            <div className="absolute h-full bg-red-600 rounded-full" style={{ width: `${(currentTime / duration) * 100}%` }} />
+                            <div 
+                                className="absolute top-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none"
+                                style={{ 
+                                    left: `${(currentTime / duration) * 100}%`,
+                                    transform: 'translate(-50%, -50%)',
+                                }}
+                            />
+                        </div>
+                    </div>
+                    <div className="flex justify-between items-center mt-1 px-1">
+                        <span className="text-xs font-mono">{formatTime(currentTime)}</span>
+                        <span className="text-xs font-mono">{formatTime(duration)}</span>
+                    </div>
+                </div>
+
+                {/* Recommendations Shelf */}
+                {recommendations && recommendations.length > 0 && (
+                     <div ref={recsPanelRef} className="overflow-x-auto no-scrollbar py-3">
+                        <div className="flex flex-nowrap gap-x-4">
+                            {recommendations.map((rec, index) => (
+                                <div key={rec.id} tabIndex={0} onClick={() => onRecommendationClick(rec)} className="flex-shrink-0 w-96 h-56 rounded-lg overflow-hidden cursor-pointer focusable">
+                                    <img src={`${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${rec.backdrop_path}`} alt={rec.title || rec.name} className="w-full h-full object-cover" />
+                                </div>
                             ))}
-                            {isTranslating && <div className="text-center text-xs p-2 text-gray-300 animate-pulse">{t('translating')}</div>}
                         </div>
                     </div>
-                     <div className="mt-4 space-y-2 pt-4 border-t border-white/10">
-                        <h4 className="text-sm font-semibold opacity-80">{t('dubbing')}</h4>
-                        <div className="flex flex-col gap-1">
-                            <button onClick={() => handleDubLangChange(null)} className={`text-left px-3 py-2 rounded-md ${!selectedDubLang ? 'bg-white/10' : 'hover:bg-white/5'}`}>{t('originalAudio')}</button>
-                            <button onClick={() => handleDubLangChange('ar')} className={`text-left px-3 py-2 rounded-md ${selectedDubLang === 'ar' ? 'bg-white/10' : 'hover:bg-white/5'}`}>{t('arabic')}</button>
-                        </div>
-                    </div>
-                    <div className="mt-6 space-y-3 pt-4 border-t border-white/10">
-                        <h4 className="text-sm font-semibold opacity-80">{t('subtitleSettings')}</h4>
-                        <div className="space-y-4">
-                            {/* Font Size Setting */}
-                            <div>
-                                <div className="flex items-center justify-between text-sm">
-                                    <span>{t('fontSize')}</span>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => onUpdateSubtitleSettings((prev: any) => ({ ...prev, fontSize: Math.max(50, prev.fontSize - 5) }))}
-                                            className="bg-zinc-700 rounded-md w-10 h-10 text-2xl font-bold flex items-center justify-center hover:bg-zinc-600"
-                                        >
-                                            -
-                                        </button>
-                                        <span className="text-base font-mono w-12 text-center">{subtitleSettings.fontSize}%</span>
-                                        <button
-                                            onClick={() => onUpdateSubtitleSettings((prev: any) => ({ ...prev, fontSize: Math.min(200, prev.fontSize + 5) }))}
-                                            className="bg-zinc-700 rounded-md w-10 h-10 text-2xl font-bold flex items-center justify-center hover:bg-zinc-600"
-                                        >
-                                            +
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            {/* Background Opacity Setting */}
-                            <div>
-                                <div className="flex items-center justify-between text-sm">
-                                    <span>{t('backgroundOpacity')}</span>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => onUpdateSubtitleSettings((prev: any) => ({ ...prev, backgroundOpacity: Math.max(0, prev.backgroundOpacity - 5) }))}
-                                            className="bg-zinc-700 rounded-md w-10 h-10 text-2xl font-bold flex items-center justify-center hover:bg-zinc-600"
-                                        >
-                                            -
-                                        </button>
-                                        <span className="text-base font-mono w-12 text-center">{subtitleSettings.backgroundOpacity}%</span>
-                                        <button
-                                            onClick={() => onUpdateSubtitleSettings((prev: any) => ({ ...prev, backgroundOpacity: Math.min(100, prev.backgroundOpacity + 5) }))}
-                                            className="bg-zinc-700 rounded-md w-10 h-10 text-2xl font-bold flex items-center justify-center hover:bg-zinc-600"
-                                        >
-                                            +
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            {/* Vertical Position Setting */}
-                            <div>
-                                <div className="flex items-center justify-between text-sm">
-                                    <span>{t('verticalPosition')}</span>
-                                    <div className="flex items-center gap-2">
-                                        <button
-                                            onClick={() => onUpdateSubtitleSettings((prev: any) => ({ ...prev, verticalPosition: Math.max(2, prev.verticalPosition - 2) }))}
-                                            className="bg-zinc-700 rounded-md w-10 h-10 text-2xl font-bold flex items-center justify-center hover:bg-zinc-600"
-                                        >
-                                            -
-                                        </button>
-                                        <span className="text-base font-mono w-12 text-center">{subtitleSettings.verticalPosition}%</span>
-                                        <button
-                                            onClick={() => onUpdateSubtitleSettings((prev: any) => ({ ...prev, verticalPosition: Math.min(85, prev.verticalPosition + 2) }))}
-                                            className="bg-zinc-700 rounded-md w-10 h-10 text-2xl font-bold flex items-center justify-center hover:bg-zinc-600"
-                                        >
-                                            +
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    {/* Quality Section Added Here */}
-                    {streamLinks && streamLinks.length > 1 && (
-                        <div className="mt-6 space-y-3 pt-4 border-t border-white/10">
-                            <h4 className="text-sm font-semibold opacity-80">{t('quality')}</h4>
-                            <div className="flex flex-col gap-1">
-                                {streamLinks.map((link: StreamLink) => (
-                                    <button
-                                        key={link.quality}
-                                        onClick={() => handleQualityChange(link)}
-                                        className={`text-left px-3 py-2 rounded-md ${activeQuality === link.quality ? 'bg-white/10' : 'hover:bg-white/5'}`}
-                                    >
-                                        {link.quality}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </SideSheet>
-            )}
-             {activePopover === 'settings' && (
-                <SideSheet onClose={() => setActivePopover(null)} title={t('settings')}>
-                    {streamLinks && streamLinks.length > 1 && (
-                        <div className="space-y-2">
-                            <h4 className="text-sm font-semibold opacity-80">{t('quality')}</h4>
-                            <div className="flex flex-col gap-1">
-                                {streamLinks.map((link: StreamLink) => (
-                                    <button
-                                        key={link.quality}
-                                        onClick={() => handleQualityChange(link)}
-                                        className={`text-left px-3 py-2 rounded-md ${activeQuality === link.quality ? 'bg-white/10' : 'hover:bg-white/5'}`}
-                                    >
-                                        {link.quality}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </SideSheet>
-            )}
+                )}
+            </div>
         </div>
     );
 }
-
-const SideSheet: React.FC<{ onClose: () => void, title: string, children: React.ReactNode }> = ({ onClose, title, children }) => {
-    const [closing, setClosing] = React.useState(false);
-    const requestClose = () => {
-        if (closing) return;
-        setClosing(true);
-        setTimeout(() => onClose(), 400);
-    };
-    return (
-        <div className="fixed inset-0 z-50 pointer-events-auto">
-            <div className="absolute inset-0 bg-black/50" onClick={requestClose}></div>
-            <div className={`absolute right-0 top-0 h-full w-full max-w-sm bg-[var(--background)] shadow-2xl ${closing ? 'animate-slide-out-right' : 'animate-slide-in-from-right'}`}>
-                <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
-                    <h3 className="font-semibold">{title}</h3>
-                    <button onClick={requestClose} className="text-xl"><i className="fa-solid fa-xmark"></i></button>
-                </div>
-                <div className="p-4 overflow-y-auto h-[calc(100%-52px)] no-scrollbar">
-                    {children}
-                </div>
-            </div>
-        </div>
-    );
-};
 
 export default VideoPlayer;
