@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -119,6 +120,7 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
     const playerContainerId = useMemo(() => `details-modal-player-${item.id}-${Math.random().toString(36).substring(7)}`, [item.id]);
 
     const modalRef = useRef<HTMLDivElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
     const playButtonRef = useRef<HTMLButtonElement>(null);
     const seasonSelectContainerRef = useRef<HTMLDivElement>(null);
 
@@ -263,9 +265,15 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
 
             switch (group) {
                 case 'top-right':
-                    if (e.key === 'ArrowRight' && index === 0) focusAndScroll(getElement(`[data-focus-group="top-right"][data-focus-index="1"]`));
-                    else if (e.key === 'ArrowLeft' && index === 1) focusAndScroll(getElement(`[data-focus-group="top-right"][data-focus-index="0"]`));
-                    else if (e.key === 'ArrowDown') focusAndScroll(getElement('[data-focus-group="main-actions"][data-focus-index="0"]'));
+                    if (e.key === 'ArrowUp') {
+                        scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                    } else if (e.key === 'ArrowRight' && index === 0) {
+                        focusAndScroll(getElement(`[data-focus-group="top-right"][data-focus-index="1"]`));
+                    } else if (e.key === 'ArrowLeft' && index === 1) {
+                        focusAndScroll(getElement(`[data-focus-group="top-right"][data-focus-index="0"]`));
+                    } else if (e.key === 'ArrowDown') {
+                        focusAndScroll(getElement('[data-focus-group="main-actions"][data-focus-index="0"]'));
+                    }
                     break;
 
                 case 'main-actions':
@@ -453,7 +461,7 @@ export const DetailsModal: React.FC<{ item: Movie, onClose: () => void }> = ({ i
                                 <i className="fas fa-times pointer-events-none"></i>
                             </button>
                         </div>
-                        <div className="w-full h-full overflow-y-auto no-scrollbar">
+                        <div ref={scrollContainerRef} className="w-full h-full overflow-y-auto no-scrollbar">
                             <div className="relative w-full h-[56.25%] min-h-[250px] md:min-h-[400px] overflow-hidden">
                                 {showAd && details.videos?.results?.length ? (
                                     <div
