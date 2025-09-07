@@ -35,6 +35,7 @@ const Hero: React.FC = () => {
 const PosterCard: React.FC<{ movie: Movie; onCardClick: (movie: Movie) => void; isNetflixOriginal?: boolean }> = ({ movie, onCardClick, isNetflixOriginal }) => {
     const navigate = useNavigate();
     const { t } = useTranslation();
+    const { isYtApiReady } = useProfile();
     const type = 'tv';
 
     const [showVideo, setShowVideo] = useState(false);
@@ -58,7 +59,7 @@ const PosterCard: React.FC<{ movie: Movie; onCardClick: (movie: Movie) => void; 
     }, []);
 
     useEffect(() => {
-        if (!showVideo || !window.YT?.Player) {
+        if (!showVideo || !isYtApiReady) {
             if (playerRef.current) {
                 playerRef.current.destroy();
                 playerRef.current = null;
@@ -86,7 +87,7 @@ const PosterCard: React.FC<{ movie: Movie; onCardClick: (movie: Movie) => void; 
 
         fetchTrailerAndInit();
         return () => { if (playerRef.current) { playerRef.current.destroy(); playerRef.current = null; } };
-    }, [showVideo, movie.id, type, playerContainerId]);
+    }, [showVideo, movie.id, type, playerContainerId, isYtApiReady]);
 
     const toggleMute = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
