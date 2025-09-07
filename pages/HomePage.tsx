@@ -171,12 +171,12 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
                         </div>
                     </div>
                     
-                    <div className="absolute bottom-3 left-3 text-white text-xs font-semibold uppercase tracking-wider drop-shadow-md pointer-events-none">
+                    <div className="absolute bottom-4 left-3 text-white text-xs font-medium uppercase tracking-wider drop-shadow-md pointer-events-none">
                         {t('resume')}
                     </div>
                 </div>
             </div>
-            <div className="mt-2 text-left min-h-[2.5rem]">
+            <div className="mt-3 text-left min-h-[2.5rem]">
                 <p className={`text-sm font-semibold text-white truncate drop-shadow-lg transition-all duration-200 ease-in-out overflow-hidden ${isFocused ? 'max-h-6 opacity-100' : 'max-h-0 opacity-0'}`}>
                     {mainTitle}
                 </p>
