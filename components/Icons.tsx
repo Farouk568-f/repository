@@ -107,13 +107,18 @@ export const LanguageIcon: React.FC<IconProps> = (props) => (
 
 // Note: These icons are not simple paths and are kept for their specific functionality/style
 export const LikeIcon: React.FC<IconProps> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" {...props}>
-        <path d="M17.8,4.2C16,4.2,15,5,15,5s-1-0.8-2.8-0.8C10.2,4.2,9,5.3,9,7.3C9,9,12,12,12,12s3-3,3-4.7C15,5.3,13.8,4.2,12.2,4.2z M20,13.1c-0.1-2.4-1.8-5-4.4-6.1C14.1,6.3,13,6,12,6s-2.1,0.3-3.6,1C5.8,8.1,4.1,10.7,4,13.1C4,13.4,4,13.8,4,14h16 C20,13.8,20,13.4,20,13.1z M3,12h1V4.7C4,4.5,4,4.2,3.9,4C3.8,3.9,3.5,3.8,3.3,3.8H2.7C2.5,3.8,2.2,3.9,2.1,4 C2,4.2,2,4.5,2,4.7V12H1c-0.6,0-1,0.4-1,1v6c0,0.6,0.4,1,1,1h3c0.6,0,1-0.4,1-1v-6C5,12.4,4.6,12,4,12z"></path>
+    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" fill="currentColor" {...props}>
+       <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"></path>
     </svg>
 );
 export const DislikeIcon: React.FC<IconProps> = (props) => (
-    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" {...props}>
-        <path d="M17 4H6.57c-1.07 0-1.98.67-2.19 1.61l-1.34 6C2.77 12.85 3.82 14 5.23 14h4.23l-1.52 4.94C7.62 19.97 8.46 21 9.62 21c.58 0 1.14-.24 1.52-.65L17 14h4V4h-4zm-6.6 15.67c-.19.21-.48.33-.78.33-.26 0-.5-.11-.63-.3-.07-.1-.15-.26-.09-.47l1.52-4.94.4-1.29H5.23c-.41 0-.8-.17-1.03-.46-.12-.15-.25-.4-.18-.72l1.34-6c.1-.47.61-.82 1.21-.82H16v8.61l-5.6 6.06zM20 13h-3V5h3v8z"></path>
+    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" fill="currentColor" {...props}>
+        <path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.36-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z"></path>
+    </svg>
+);
+export const AddToPlaylistIcon: React.FC<IconProps> = (props) => (
+    <svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24" focusable="false" fill="currentColor" {...props}>
+        <path d="M14 10H2v2h12v-2zm0-4H2v2h12V6zm4 8v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zM2 16h8v-2H2v2z"></path>
     </svg>
 );
 export const ShareIcon: React.FC<IconProps> = (props) => (
