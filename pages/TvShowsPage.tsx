@@ -134,7 +134,7 @@ const ContentRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie
         <div className="my-6 md:my-8" style={{ zIndex }}>
             <h2 className="text-lg md:text-xl font-bold text-white mb-3">{title}</h2>
             {/* FIX: The PosterCard component expects an `isNetflixOriginal` prop, not `isNetflixRow`. */}
-            <div className="overflow-x-auto no-scrollbar py-32 -my-32"><div className="flex flex-nowrap gap-x-6">{movies.map(movie => <PosterCard key={movie.id} movie={movie} onCardClick={onCardClick} isNetflixOriginal={isNetflixRow} />)}</div></div>
+            <div className="overflow-x-auto no-scrollbar py-32 -my-32"><div className="flex flex-nowrap gap-x-6 px-6">{movies.map(movie => <PosterCard key={movie.id} movie={movie} onCardClick={onCardClick} isNetflixOriginal={isNetflixRow} />)}</div></div>
         </div>
     );
 };
