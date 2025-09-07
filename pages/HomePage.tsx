@@ -642,7 +642,7 @@ const HomePage: React.FC = () => {
           {isKidsMode ? (
             <>
                 <Hero movie={data.hero} isKids={isKidsMode} />
-                <div className="relative z-10 mt-8">
+                <div className="relative z-10 mt-12 space-y-20">
                   <ContentRow title={t('kidsFavorites')} movies={data.kidsFavorites} onCardClick={handleOpenModal} zIndex={12} />
                   {data.continueWatching?.length > 0 && <ContentRow title={t('continueWatching')} movies={data.continueWatching} onCardClick={handleOpenModal} zIndex={10} />}
                   <ContentRow title={t('animatedAdventures')} movies={data.animatedAdventures} onCardClick={handleOpenModal} zIndex={11} />
