@@ -126,21 +126,20 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
     const progressPercent = (movie.duration && movie.currentTime && movie.duration > 0) ? (movie.currentTime / movie.duration) * 100 : 0;
     
     const { mainTitle, secondaryText } = useMemo(() => {
-        if (!movie.title) return { mainTitle: movie.name, secondaryText: '' };
-        
-        const titleParts = movie.title.split(': S');
+        const title = movie.title || movie.name || '';
+        const titleParts = title.split(': S');
         if (titleParts.length > 1) { // It's a series
             const main = titleParts[0];
             const seasonEpisodePart = 'S' + titleParts[1];
             const seasonMatch = seasonEpisodePart.match(/S(\d+)/);
             const episodeMatch = seasonEpisodePart.match(/E(\d+)/);
             if (seasonMatch && episodeMatch) {
-                const secondary = `S${seasonMatch[1]} Ep ${episodeMatch[1]} • Resume on Netflix`;
+                const secondary = `S${seasonMatch[1]} Ep ${episodeMatch[1]} • Resume`;
                 return { mainTitle: main, secondaryText: secondary };
             }
         }
         // It's a movie, or parsing failed
-        return { mainTitle: movie.title.split(': S')[0], secondaryText: '' }; 
+        return { mainTitle: title.split(': S')[0], secondaryText: 'Resume on Netflix' }; 
     }, [movie.title, movie.name]);
 
     if (!movie.backdrop_path) return null;
@@ -164,22 +163,24 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
                         className={`object-cover w-full h-full`}
                         loading="lazy"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent pointer-events-none"></div>
                     
-                    <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-zinc-600">
-                        <div className="h-full bg-white" style={{ width: `${progressPercent}%` }}></div>
+                    <div className="absolute bottom-0 left-0 right-0 px-3 pb-1.5 pointer-events-none">
+                        <div className="h-1.5 bg-zinc-600/80 rounded-full">
+                            <div className="h-full bg-white rounded-full" style={{ width: `${progressPercent}%` }}></div>
+                        </div>
                     </div>
-
-                    <div className="absolute bottom-3 left-3 text-white text-xs font-semibold uppercase tracking-wider drop-shadow-md">
+                    
+                    <div className="absolute bottom-3 left-3 text-white text-xs font-semibold uppercase tracking-wider drop-shadow-md pointer-events-none">
                         {t('resume')}
                     </div>
                 </div>
             </div>
-            <div className={`mt-2 text-left`}>
-                <p className="text-sm font-semibold text-white truncate drop-shadow-lg">
+            <div className="mt-2 text-left min-h-[2.5rem]">
+                <p className={`text-sm font-semibold text-white truncate drop-shadow-lg transition-all duration-200 ease-in-out overflow-hidden ${isFocused ? 'max-h-6 opacity-100' : 'max-h-0 opacity-0'}`}>
                     {mainTitle}
                 </p>
-                <p className={`text-xs text-zinc-400 truncate transition-opacity duration-200 h-4 ${isFocused ? 'opacity-100' : 'opacity-0'}`}>
+                <p className={`text-xs text-zinc-400 truncate`}>
                     {secondaryText}
                 </p>
             </div>
