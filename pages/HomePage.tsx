@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchFromTMDB } from '../services/apiService';
@@ -99,6 +100,7 @@ const Hero: React.FC<{ movie: Movie | null; isKids: boolean; }> = ({ movie, isKi
 const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, isNetflixOriginal?: boolean, isRecentlyAdded?: boolean }> = ({ movie, onCardClick, isNetflixOriginal, isRecentlyAdded }) => {
   const navigate = useNavigate();
   const { t } = useTranslation();
+  const { isYtApiReady } = useProfile();
   const type = movie.media_type || (movie.title ? 'movie' : 'tv');
 
   const [showVideo, setShowVideo] = useState(false);
@@ -127,7 +129,7 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
   useEffect(() => {
     // If we shouldn't show the video, or the YouTube API isn't ready,
     // ensure any existing player is destroyed and exit early.
-    if (!showVideo || !window.YT?.Player) {
+    if (!showVideo || !isYtApiReady) {
         if (playerRef.current) {
             playerRef.current.destroy();
             playerRef.current = null;
@@ -175,7 +177,7 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
         playerRef.current = null;
       }
     };
-  }, [showVideo, movie.id, type, playerContainerId]);
+  }, [showVideo, movie.id, type, playerContainerId, isYtApiReady]);
 
   const toggleMute = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -195,7 +197,7 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
 
   return (
     <div 
-        className="interactive-card-container flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px] cursor-pointer focusable"
+        className="interactive-card-container relative flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px] cursor-pointer focusable"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         data-movie-id={movie.id}
