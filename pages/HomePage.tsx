@@ -148,7 +148,7 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
     return (
         <div
             ref={cardRef}
-            className="flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px] cursor-pointer focusable"
+            className="flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px] cursor-pointer focusable continue-watching-card-wrapper"
             tabIndex={0}
             onClick={() => onCardClick(movie)}
             onKeyDown={(e) => e.key === 'Enter' && onCardClick(movie)}
@@ -166,11 +166,11 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
                     
-                    <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/30">
+                    <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-zinc-600">
                         <div className="h-full bg-white" style={{ width: `${progressPercent}%` }}></div>
                     </div>
 
-                    <div className="absolute bottom-2.5 left-3 text-white text-xs font-semibold uppercase tracking-wider drop-shadow-md">
+                    <div className="absolute bottom-3 left-3 text-white text-xs font-semibold uppercase tracking-wider drop-shadow-md">
                         {t('resume')}
                     </div>
                 </div>
