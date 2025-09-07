@@ -29,6 +29,7 @@ interface ProfileContextType {
   isFollowingActor: (actorId: number) => boolean;
   modalItem: Movie | null;
   setModalItem: (item: Movie | null) => void;
+  isYtApiReady: boolean;
 }
 
 const ProfileContext = createContext<ProfileContextType | undefined>(undefined);
@@ -59,6 +60,33 @@ export const ProfileProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => getLocalStorageItem('darkMode', true));
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' | 'info' } | null>(null);
   const [modalItem, setModalItem] = useState<Movie | null>(null);
+  const [isYtApiReady, setIsYtApiReady] = useState(false);
+
+  useEffect(() => {
+    // This effect runs once on app start to load the YouTube IFrame API
+    if (window.YT?.Player) {
+        setIsYtApiReady(true);
+        return;
+    }
+
+    const scriptId = 'youtube-iframe-api';
+    
+    // This function will be called by the YT script once it's loaded and ready.
+    window.onYouTubeIframeAPIReady = () => {
+        setIsYtApiReady(true);
+    };
+    
+    if (!document.getElementById(scriptId)) {
+        const tag = document.createElement('script');
+        tag.id = scriptId;
+        tag.src = "https://www.youtube.com/iframe_api";
+        document.head.append(tag);
+    } else if (window.YT?.Player) {
+        // The script is there AND the API is ready. This might happen in some HMR scenarios.
+        setIsYtApiReady(true);
+    }
+    // If script is present but API not ready, onYouTubeIframeAPIReady will be called eventually by the script itself.
+  }, []);
 
   useEffect(() => {
     let data = getLocalStorageItem<AccountData>('cineStreamAccount', { screens: [], activeScreenId: null });
@@ -363,6 +391,7 @@ export const ProfileProvider: React.FC<{ children: ReactNode }> = ({ children })
       isFollowingActor,
       modalItem,
       setModalItem,
+      isYtApiReady,
     }}>
       {children}
     </ProfileContext.Provider>
