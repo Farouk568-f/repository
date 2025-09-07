@@ -33,7 +33,7 @@ const SettingsPage: React.FC = () => {
 
   return (
     <Layout>
-      <div className="p-4 max-w-2xl mx-auto">
+      <div className="p-4 pt-24 max-w-2xl mx-auto">
         <h1 className="mb-8 text-3xl font-bold">{t('settings')}</h1>
 
         <div className="space-y-8">
