@@ -1,9 +1,3 @@
-
-
-
-
-
-
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useProfile } from '../contexts/ProfileContext';
@@ -37,9 +31,10 @@ const ItemCard: React.FC<{ item: Movie | FavoriteItem, index: number }> = ({ ite
 
     return (
         <div 
-            className="w-full animate-grid-item cursor-pointer" 
+            className="w-full animate-grid-item cursor-pointer focusable" 
             style={{ animationDelay: `${index * 30}ms` }}
             onClick={handleItemClick}
+            tabIndex={0}
         >
             <div className="relative overflow-hidden transition-all duration-300 ease-in-out rounded-lg shadow-lg bg-[var(--surface)] interactive-card">
                  <img
@@ -59,56 +54,13 @@ const SkeletonCard: React.FC = () => (
     </div>
 );
 
-const SearchResultCard: React.FC<{ item: Movie, index: number }> = ({ item, index }) => {
-    const { setModalItem } = useProfile();
-    const { t } = useTranslation();
-    const navigate = useNavigate();
-    const type = item.media_type || (item.title ? 'movie' : 'tv');
-
-    if (!item.backdrop_path) return null;
-
-    const handleCardClick = () => {
-        setModalItem(item);
-    };
-
-    return (
-        <div 
-            className="interactive-card-container w-full cursor-pointer animate-grid-item"
-            style={{ animationDelay: `${index * 30}ms` }}
-            onClick={handleCardClick}
-        >
-          <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-lg shadow-lg bg-[var(--surface)] interactive-card">
-            <img
-              src={`${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${item.backdrop_path}`}
-              alt={item.title || item.name}
-              className="object-cover w-full aspect-video"
-              loading="lazy"
-            />
-            <div className="quick-view bg-[var(--surface)] px-3">
-               <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <button onClick={(e) => { e.stopPropagation(); navigate('/player', { state: { item, type } }); }} className="w-9 h-9 flex items-center justify-center text-black bg-white rounded-full text-lg btn-press"><i className="fas fa-play"></i></button>
-                    <button onClick={(e) => e.stopPropagation()} className="w-9 h-9 flex items-center justify-center text-white border-2 border-zinc-500 rounded-full text-lg btn-press hover:border-white"><i className="fas fa-plus"></i></button>
-                  </div>
-                  <button onClick={(e) => { e.stopPropagation(); handleCardClick(); }} className="w-9 h-9 flex items-center justify-center text-white border-2 border-zinc-500 rounded-full text-lg btn-press hover:border-white"><i className="fas fa-chevron-down"></i></button>
-               </div>
-               <div className="flex items-center gap-2 text-xs mt-3">
-                  <span className="font-bold text-green-500">{(item.vote_average * 10).toFixed(0)}% {t('match')}</span>
-                  <span className='px-1.5 py-0.5 border border-white/50 text-[10px] rounded'>HD</span>
-               </div>
-            </div>
-          </div>
-        </div>
-    );
-};
-
-
 const GenericPage: React.FC<{
     pageType: 'favorites' | 'downloads' | 'search' | 'all' | 'subscriptions',
     title: string
 }> = ({ pageType, title }) => {
-    const { getScreenSpecificData, addLastSearch, activeProfile } = useProfile();
+    const { getScreenSpecificData, addLastSearch, activeProfile, setModalItem } = useProfile();
     const { t } = useTranslation();
+    const navigate = useNavigate();
     const [content, setContent] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const { category } = useParams<{category: string}>();
@@ -121,6 +73,82 @@ const GenericPage: React.FC<{
     const [initialContent, setInitialContent] = useState<Movie[]>([]);
     const [isInitialLoading, setIsInitialLoading] = useState(true);
     const inputRef = useRef<HTMLInputElement>(null);
+    const resultsContainerRef = useRef<HTMLDivElement>(null);
+
+    const SearchResultCard: React.FC<{ item: Movie, index: number }> = ({ item, index }) => {
+        const type = item.media_type || (item.title ? 'movie' : 'tv');
+    
+        if (!item.backdrop_path) return null;
+    
+        const handleCardClick = () => {
+            setModalItem(item);
+        };
+
+        const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleCardClick();
+                return;
+            }
+
+            if (e.key === 'ArrowUp') {
+                const container = resultsContainerRef.current;
+                if (!container) return;
+
+                const currentRect = e.currentTarget.getBoundingClientRect();
+                const focusables = Array.from(container.querySelectorAll('.focusable')) as HTMLElement[];
+                
+                let isFirstRow = true;
+                // Check if any other focusable card is positioned above the current one.
+                for (const other of focusables) {
+                    if (other === e.currentTarget) continue;
+                    const otherRect = other.getBoundingClientRect();
+                    // If another card's bottom edge is above the vertical center of the current card, it's in a row above.
+                    if (otherRect.bottom < currentRect.top + (currentRect.height / 2)) {
+                        isFirstRow = false;
+                        break;
+                    }
+                }
+                
+                if (isFirstRow) {
+                    e.preventDefault();
+                    inputRef.current?.focus();
+                }
+            }
+        };
+    
+        return (
+            <div 
+                className="interactive-card-container w-full cursor-pointer animate-grid-item focusable"
+                style={{ animationDelay: `${index * 30}ms` }}
+                onClick={handleCardClick}
+                onKeyDown={handleKeyDown}
+                tabIndex={0}
+            >
+              <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-lg shadow-lg bg-[var(--surface)] interactive-card">
+                <img
+                  src={`${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${item.backdrop_path}`}
+                  alt={item.title || item.name}
+                  className="object-cover w-full aspect-video"
+                  loading="lazy"
+                />
+                <div className="quick-view bg-[var(--surface)] px-3">
+                   <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <button onClick={(e) => { e.stopPropagation(); navigate('/player', { state: { item, type } }); }} className="w-9 h-9 flex items-center justify-center text-black bg-white rounded-full text-lg btn-press"><i className="fas fa-play"></i></button>
+                        <button onClick={(e) => e.stopPropagation()} className="w-9 h-9 flex items-center justify-center text-white border-2 border-zinc-500 rounded-full text-lg btn-press hover:border-white"><i className="fas fa-plus"></i></button>
+                      </div>
+                      <button onClick={(e) => { e.stopPropagation(); handleCardClick(); }} className="w-9 h-9 flex items-center justify-center text-white border-2 border-zinc-500 rounded-full text-lg btn-press hover:border-white"><i className="fas fa-chevron-down"></i></button>
+                   </div>
+                   <div className="flex items-center gap-2 text-xs mt-3">
+                      <span className="font-bold text-green-500">{(item.vote_average * 10).toFixed(0)}% {t('match')}</span>
+                      <span className='px-1.5 py-0.5 border border-white/50 text-[10px] rounded'>HD</span>
+                   </div>
+                </div>
+              </div>
+            </div>
+        );
+    };
 
     const performSearch = useCallback(async (searchQuery: string) => {
         if (!searchQuery) {
@@ -234,6 +262,16 @@ const GenericPage: React.FC<{
         }
     }, [pageType, loadContent, activeProfile]);
 
+    const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const firstCard = resultsContainerRef.current?.querySelector('.focusable') as HTMLElement;
+            if (firstCard) {
+                firstCard.focus();
+                firstCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        }
+    };
 
     if (pageType === 'search') {
         const renderSearchContent = () => {
@@ -294,11 +332,14 @@ const GenericPage: React.FC<{
                             type="text"
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
+                            onKeyDown={handleInputKeyDown}
                             placeholder={t('searchPlaceholder')}
-                            className="w-full bg-zinc-800 text-white text-lg px-6 py-4 rounded-full border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-[var(--primary)] pl-14 transition-colors"
+                            className="w-full bg-zinc-800 text-white text-lg px-6 py-4 rounded-full border-2 border-transparent focus:outline-none focus:ring-2 focus:ring-[var(--primary)] pl-14 transition-colors focusable"
                         />
                     </div>
-                    {renderSearchContent()}
+                    <div ref={resultsContainerRef}>
+                      {renderSearchContent()}
+                    </div>
                 </div>
             </Layout>
         )
