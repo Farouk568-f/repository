@@ -29,6 +29,14 @@ export interface Movie {
   number_of_episodes?: number;
   currentTime?: number;
   duration?: number;
+  // FIX: Add optional videos property based on API response for `append_to_response`.
+  videos?: {
+    results: {
+      key: string;
+      site: string;
+      type: string;
+    }[];
+  };
   images?: {
     logos: {
       file_path: string;
@@ -136,7 +144,6 @@ export interface SubtitleSettings {
   backgroundOpacity: number;
   edgeStyle: 'none' | 'drop-shadow' | 'outline';
   verticalPosition: number;
-  timeOffset: number;
 }
 
 export interface VideoFilters {
@@ -179,7 +186,7 @@ export interface Short {
   videoKey: string;
   media_type: 'movie' | 'tv';
 }
-
+  
 export interface YTPlayer {
   playVideo: () => void;
   pauseVideo: () => void;
