@@ -82,6 +82,8 @@ const App: React.FC = () => {
   const enterPressTimeout = useRef<number | null>(null);
   const [cursorPosition, setCursorPosition] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const [clickEffect, setClickEffect] = useState(false);
+  const animationFrameIdRef = useRef<number | null>(null);
+  const focusedElementRef = useRef<HTMLElement | null>(null);
   
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // Handle triple-enter for cursor
@@ -137,7 +139,7 @@ const App: React.FC = () => {
       const firstFocusable = navigationScope.querySelector('.focusable') as HTMLElement;
       if (firstFocusable) {
         firstFocusable.focus();
-        firstFocusable.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        firstFocusable.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
       }
       return;
     }
@@ -197,7 +199,7 @@ const App: React.FC = () => {
 
     if (bestCandidate) {
       bestCandidate.focus();
-      bestCandidate.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      bestCandidate.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
     }
   }, [enterPressCount, showTvCursor, cursorPosition.x, cursorPosition.y]);
 
@@ -207,35 +209,58 @@ const App: React.FC = () => {
   }, [handleKeyDown]);
   
   useEffect(() => {
+    const updateGlowPosition = () => {
+      if (focusedElementRef.current) {
+        const rect = focusedElementRef.current.getBoundingClientRect();
+        document.documentElement.style.setProperty('--glow-x', `${rect.left + rect.width / 2}px`);
+        document.documentElement.style.setProperty('--glow-y', `${rect.top + rect.height / 2}px`);
+        animationFrameIdRef.current = requestAnimationFrame(updateGlowPosition);
+      }
+    };
+
     const handleFocusIn = async (e: FocusEvent) => {
-        const target = e.target as HTMLElement;
-        const focusableCard = target.closest('.focusable');
+      const target = e.target as HTMLElement;
+      const focusableCard = target.closest('.focusable');
 
-        if (!focusableCard || !focusableCard.querySelector('img')) {
-            document.body.classList.remove('glow-active');
-            return;
-        }
+      // Stop any existing glow animation
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = null;
+      }
+      document.body.classList.remove('glow-active');
+      focusedElementRef.current = null;
 
-        const img = focusableCard.querySelector('img');
-        if (img && img.src) {
-            try {
-                const color = await extractColorFromImage(img.src);
-                const rect = focusableCard.getBoundingClientRect();
-                
-                document.documentElement.style.setProperty('--glow-x', `${rect.left + rect.width / 2}px`);
-                document.documentElement.style.setProperty('--glow-y', `${rect.top + rect.height / 2}px`);
-                document.documentElement.style.setProperty('--glow-color', color);
-                
-                document.body.classList.add('glow-active');
-            } catch (error) {
-                console.error('Error setting glow:', error);
-                document.body.classList.remove('glow-active');
-            }
+      if (!focusableCard || !focusableCard.querySelector('img')) {
+        return;
+      }
+
+      focusedElementRef.current = focusableCard as HTMLElement;
+      const img = focusableCard.querySelector('img');
+
+      if (img && img.src) {
+        try {
+          const color = await extractColorFromImage(img.src);
+          document.documentElement.style.setProperty('--glow-color', color);
+          document.body.classList.add('glow-active');
+          
+          // Start the animation loop
+          updateGlowPosition();
+
+        } catch (error) {
+          console.error('Error setting glow:', error);
+          document.body.classList.remove('glow-active');
+          focusedElementRef.current = null;
         }
+      }
     };
 
     const handleFocusOut = () => {
-        document.body.classList.remove('glow-active');
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = null;
+      }
+      focusedElementRef.current = null;
+      document.body.classList.remove('glow-active');
     };
 
     document.body.addEventListener('focusin', handleFocusIn);
@@ -244,6 +269,9 @@ const App: React.FC = () => {
     return () => {
         document.body.removeEventListener('focusin', handleFocusIn);
         document.body.removeEventListener('focusout', handleFocusOut);
+        if (animationFrameIdRef.current) {
+            cancelAnimationFrame(animationFrameIdRef.current);
+        }
     };
   }, []);
 
