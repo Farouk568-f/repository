@@ -82,6 +82,8 @@ const App: React.FC = () => {
   const enterPressTimeout = useRef<number | null>(null);
   const [cursorPosition, setCursorPosition] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const [clickEffect, setClickEffect] = useState(false);
+  const animationFrameIdRef = useRef<number | null>(null);
+  const focusedElementRef = useRef<HTMLElement | null>(null);
   
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // Handle triple-enter for cursor
@@ -215,37 +217,48 @@ const App: React.FC = () => {
   }, [handleKeyDown]);
   
   useEffect(() => {
+    const updateGlowPosition = () => {
+      if (focusedElementRef.current) {
+        const rect = focusedElementRef.current.getBoundingClientRect();
+        document.documentElement.style.setProperty('--glow-x', `${rect.left + rect.width / 2}px`);
+        document.documentElement.style.setProperty('--glow-y', `${rect.top + rect.height / 2}px`);
+        animationFrameIdRef.current = requestAnimationFrame(updateGlowPosition);
+      }
+    };
+
     const handleFocusIn = (e: FocusEvent) => {
       const target = e.target as HTMLElement;
       const focusableCard = target.closest('.focusable');
 
-      // Ensure any previous glow is removed before applying a new one.
+      // Stop any existing glow animation
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = null;
+      }
       document.body.classList.remove('glow-active');
+      focusedElementRef.current = null;
 
       if (!focusableCard || !focusableCard.querySelector('img')) {
-        return; // Not a card with an image, so no glow.
+        return;
       }
 
-      const rect = focusableCard.getBoundingClientRect();
+      focusedElementRef.current = focusableCard as HTMLElement;
       const img = focusableCard.querySelector('img');
 
-      // Set position statically. This is the main performance improvement.
-      document.documentElement.style.setProperty('--glow-x', `${rect.left + rect.width / 2}px`);
-      document.documentElement.style.setProperty('--glow-y', `${rect.top + rect.height / 2}px`);
-      
       if (img && img.src) {
         const imageUrl = img.src;
         // Immediately activate glow with cached or default color for responsiveness
         const immediateColor = colorCache.get(imageUrl) || 'rgba(128, 128, 128, 0.2)';
         document.documentElement.style.setProperty('--glow-color', immediateColor);
         document.body.classList.add('glow-active');
+        updateGlowPosition(); // Start animation loop
 
         // If color wasn't cached, fetch it asynchronously and update
         if (!colorCache.has(imageUrl)) {
             extractColorFromImage(imageUrl)
               .then(color => {
                 // Only update if the same element is still focused
-                if (document.activeElement === target || document.activeElement === focusableCard) {
+                if (focusedElementRef.current === focusableCard) {
                   document.documentElement.style.setProperty('--glow-color', color);
                 }
               })
@@ -254,15 +267,15 @@ const App: React.FC = () => {
                 // The default glow is already active, so no need to do anything on error
               });
         }
-      } else {
-        // Fallback for cards that are focusable but might not have an `img` tag
-        document.documentElement.style.setProperty('--glow-color', 'rgba(128, 128, 128, 0.2)');
-        document.body.classList.add('glow-active');
       }
     };
 
     const handleFocusOut = () => {
-      // Simply remove the class on focus out.
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+        animationFrameIdRef.current = null;
+      }
+      focusedElementRef.current = null;
       document.body.classList.remove('glow-active');
     };
 
@@ -272,7 +285,9 @@ const App: React.FC = () => {
     return () => {
         document.body.removeEventListener('focusin', handleFocusIn);
         document.body.removeEventListener('focusout', handleFocusOut);
-        document.body.classList.remove('glow-active');
+        if (animationFrameIdRef.current) {
+            cancelAnimationFrame(animationFrameIdRef.current);
+        }
     };
   }, []);
 
