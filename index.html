@@ -253,13 +253,16 @@
         animation: ripple-effect 0.4s ease-out forwards;
       }
 
-      /* New Focus Pulse Animation for border (Fade Out) */
+      /* New Focus Pulse Animation for border (Fade In and Slower Fade Out) */
       @keyframes focus-pulse {
         0% {
-          outline-color: rgba(255, 255, 255, 1);
+          outline-color: rgba(255, 255, 255, 0); /* Fade in start */
+        }
+        20% {
+          outline-color: rgba(255, 255, 255, 0.9); /* Fade in end, fade out start */
         }
         100% {
-          outline-color: rgba(255, 255, 255, 0);
+          outline-color: rgba(255, 255, 255, 0); /* Fade out end */
         }
       }
 
@@ -308,7 +311,7 @@
         outline-style: solid !important;
         outline-width: 3px !important;
         outline-offset: 2px;
-        animation: focus-pulse 1.2s linear infinite;
+        animation: focus-pulse 2s linear infinite;
       }
 
       /* Prevent scaling on Top 10 cards on focus */
