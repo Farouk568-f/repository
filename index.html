@@ -296,15 +296,21 @@
         outline: none !important;
         box-shadow: none;
       }
-      /* Override for cards to use the glow effect and pulse animation on the border. */
-      div.focusable:not(.continue-watching-card-wrapper):has(img):focus-visible {
-        box-shadow: none; 
-        z-index: 30; /* Ensure it's on top of other elements */
+      
+      /* Override for standard cards: remove outline from wrapper, which inherits scaling. */
+      div.focusable:not(.continue-watching-card-wrapper):has(.interactive-card):focus-visible {
+        box-shadow: none;
+        outline: none !important;
+      }
+      
+      /* Apply animated border to the inner card element when its wrapper is focused. */
+      div.focusable:not(.continue-watching-card-wrapper):has(.interactive-card):focus-visible .interactive-card {
         outline-style: solid !important;
         outline-width: 3px !important;
         outline-offset: 2px;
         animation: focus-pulse 1.2s linear infinite;
       }
+
       /* Prevent scaling on Top 10 cards on focus */
       div.focusable.top-ten-card-focusable:focus-visible {
         transform: scale(1);
