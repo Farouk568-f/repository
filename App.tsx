@@ -36,45 +36,6 @@ const GlobalModal: React.FC = () => {
     return <DetailsModal item={modalItem} onClose={() => setModalItem(null)} />;
 }
 
-// Helper for dynamic glow effect
-const colorCache = new Map<string, string>();
-const canvas = document.createElement('canvas');
-const context = canvas.getContext('2d', { willReadFrequently: true });
-canvas.width = 1;
-canvas.height = 1;
-
-const extractColorFromImage = (imageUrl: string): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    if (colorCache.has(imageUrl)) {
-      resolve(colorCache.get(imageUrl)!);
-      return;
-    }
-
-    const img = new Image();
-    img.crossOrigin = 'Anonymous';
-    img.src = imageUrl;
-
-    img.onload = () => {
-      if (!context) {
-        reject('Canvas context not available');
-        return;
-      }
-      context.drawImage(img, 0, 0, 1, 1);
-      const data = context.getImageData(0, 0, 1, 1).data;
-      const rgba = `rgba(${data[0]}, ${data[1]}, ${data[2]}, 0.75)`; // Increased opacity for a more prominent glow
-      colorCache.set(imageUrl, rgba);
-      resolve(rgba);
-    };
-
-    img.onerror = () => {
-      const defaultColor = 'rgba(128, 128, 128, 0.2)';
-      colorCache.set(imageUrl, defaultColor);
-      resolve(defaultColor);
-    };
-  });
-};
-
-
 const App: React.FC = () => {
   // Triple-enter cursor state
   const [enterPressCount, setEnterPressCount] = useState(0);
@@ -82,8 +43,6 @@ const App: React.FC = () => {
   const enterPressTimeout = useRef<number | null>(null);
   const [cursorPosition, setCursorPosition] = useState({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
   const [clickEffect, setClickEffect] = useState(false);
-  const animationFrameIdRef = useRef<number | null>(null);
-  const focusedElementRef = useRef<HTMLElement | null>(null);
   
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     // Handle triple-enter for cursor
@@ -216,81 +175,6 @@ const App: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
   
-  useEffect(() => {
-    const updateGlowPosition = () => {
-      if (focusedElementRef.current) {
-        const rect = focusedElementRef.current.getBoundingClientRect();
-        document.documentElement.style.setProperty('--glow-x', `${rect.left + rect.width / 2}px`);
-        document.documentElement.style.setProperty('--glow-y', `${rect.top + rect.height / 2}px`);
-        animationFrameIdRef.current = requestAnimationFrame(updateGlowPosition);
-      }
-    };
-
-    const handleFocusIn = (e: FocusEvent) => {
-      const target = e.target as HTMLElement;
-      const focusableCard = target.closest('.focusable');
-
-      // Stop any existing glow animation
-      if (animationFrameIdRef.current) {
-        cancelAnimationFrame(animationFrameIdRef.current);
-        animationFrameIdRef.current = null;
-      }
-      document.body.classList.remove('glow-active');
-      focusedElementRef.current = null;
-
-      if (!focusableCard || !focusableCard.querySelector('img')) {
-        return;
-      }
-
-      focusedElementRef.current = focusableCard as HTMLElement;
-      const img = focusableCard.querySelector('img');
-
-      if (img && img.src) {
-        const imageUrl = img.src;
-        // Immediately activate glow with cached or default color for responsiveness
-        const immediateColor = colorCache.get(imageUrl) || 'rgba(128, 128, 128, 0.2)';
-        document.documentElement.style.setProperty('--glow-color', immediateColor);
-        document.body.classList.add('glow-active');
-        updateGlowPosition(); // Start animation loop
-
-        // If color wasn't cached, fetch it asynchronously and update
-        if (!colorCache.has(imageUrl)) {
-            extractColorFromImage(imageUrl)
-              .then(color => {
-                // Only update if the same element is still focused
-                if (focusedElementRef.current === focusableCard) {
-                  document.documentElement.style.setProperty('--glow-color', color);
-                }
-              })
-              .catch(error => {
-                console.error('Error setting glow color:', error);
-                // The default glow is already active, so no need to do anything on error
-              });
-        }
-      }
-    };
-
-    const handleFocusOut = () => {
-      if (animationFrameIdRef.current) {
-        cancelAnimationFrame(animationFrameIdRef.current);
-        animationFrameIdRef.current = null;
-      }
-      focusedElementRef.current = null;
-      document.body.classList.remove('glow-active');
-    };
-
-    document.body.addEventListener('focusin', handleFocusIn);
-    document.body.addEventListener('focusout', handleFocusOut);
-
-    return () => {
-        document.body.removeEventListener('focusin', handleFocusIn);
-        document.body.removeEventListener('focusout', handleFocusOut);
-        if (animationFrameIdRef.current) {
-            cancelAnimationFrame(animationFrameIdRef.current);
-        }
-    };
-  }, []);
-
   return ( 
     <LanguageProvider>
       <ProfileProvider>
