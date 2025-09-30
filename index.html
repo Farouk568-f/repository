@@ -297,7 +297,7 @@
         box-shadow: none;
       }
       /* Override for cards to use the glow effect and pulse animation on the border. */
-      div.focusable:has(img):focus-visible {
+      div.focusable:not(.continue-watching-card-wrapper):has(img):focus-visible {
         box-shadow: none; 
         z-index: 30; /* Ensure it's on top of other elements */
         outline-style: solid !important;
