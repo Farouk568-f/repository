@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchFromTMDB, fetchStreamUrl } from '../services/apiService';
 import { Movie, Episode, Season } from '../types';
@@ -16,13 +16,29 @@ const SimilarItemCard: React.FC<{ item: Movie, index: number }> = ({ item, index
     navigate(`/details/${type}/${item.id}`);
   };
 
+  const handleGlow = useCallback(() => {
+    if (window.cineStreamBgTimeoutId) {
+        clearTimeout(window.cineStreamBgTimeoutId);
+    }
+    window.cineStreamBgTimeoutId = window.setTimeout(() => {
+        if (item.poster_path) {
+            const imageUrl = `${IMAGE_BASE_URL}w342${item.poster_path}`;
+            document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
+            document.body.classList.add('has-dynamic-bg');
+        }
+    }, 200);
+  }, [item.poster_path]);
+
   if (!item.poster_path) return null;
 
   return (
     <div
       onClick={handleClick}
-      className="flex-shrink-0 w-32 cursor-pointer animate-fade-in-up interactive-card-sm"
-      style={{ animationDelay: `${index * 50}ms` }}
+      onMouseEnter={handleGlow}
+      onFocus={handleGlow}
+      className="flex-shrink-0 w-32 cursor-pointer animate-fade-in-up interactive-card-sm glow-card-container focusable"
+      style={{ '--glow-image-url': `url(${IMAGE_BASE_URL}w342${item.poster_path})`, animationDelay: `${index * 50}ms` } as React.CSSProperties}
+      tabIndex={0}
     >
       <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-lg shadow-lg bg-[var(--surface)] border-2 border-transparent">
         <img
@@ -131,6 +147,14 @@ const DetailsPage: React.FC = () => {
   const handleEpisodePlay = (episode: Episode) => {
      navigate('/player', { state: { item, type, season: selectedSeason, episode, streamUrl: prefetchedStreamUrl } });
   }
+
+  const handleMouseLeaveList = useCallback(() => {
+    if (window.cineStreamBgTimeoutId) {
+        clearTimeout(window.cineStreamBgTimeoutId);
+        window.cineStreamBgTimeoutId = null;
+    }
+    document.body.classList.remove('has-dynamic-bg');
+  }, []);
 
   const seasonOptions = useMemo(() => {
     if (!item?.seasons) return [];
@@ -298,7 +322,7 @@ const DetailsPage: React.FC = () => {
         {activeTab === 'similar' && item.recommendations?.results && item.recommendations.results.length > 0 && (
           <div>
             <h3 className="text-xl font-bold text-white mb-4">{t('similar')}</h3>
-            <div className="flex pb-4 -mx-4 overflow-x-auto no-scrollbar sm:mx-0">
+            <div onMouseLeave={handleMouseLeaveList} className="flex pb-4 -mx-4 overflow-x-auto no-scrollbar sm:mx-0">
                 <div className="flex flex-nowrap gap-x-4 px-4">
                     {item.recommendations.results.map((movie, index) => <SimilarItemCard key={movie.id} item={movie} index={index} />)}
                 </div>
