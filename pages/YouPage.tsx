@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProfile } from '../contexts/ProfileContext';
 import { useTranslation } from '../contexts/LanguageContext';
@@ -116,8 +116,21 @@ const HistoryCard: React.FC<{ item: HistoryItem, index: number }> = ({ item, ind
     const views = (Math.random() * 100).toFixed(0) + 'K';
     const timeAgo = `${index + 2} hour${index > 0 ? 's' : ''} ago`;
 
+    const imageUrl = item.itemImage;
+    const handleGlow = useCallback(() => {
+        document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
+        document.body.classList.add('has-dynamic-bg');
+    }, [imageUrl]);
+
     return (
-        <div onClick={handleClick} className="flex-shrink-0 w-64 cursor-pointer group interactive-card">
+        <div 
+            onClick={handleClick} 
+            className="flex-shrink-0 w-64 cursor-pointer group interactive-card glow-card-container focusable"
+            onMouseEnter={handleGlow}
+            onFocus={handleGlow}
+            tabIndex={0}
+            style={{ '--glow-image-url': `url(${imageUrl})` } as React.CSSProperties}
+        >
             <div className="relative overflow-hidden rounded-xl bg-zinc-800 shadow-lg">
                 <img src={item.itemImage} alt={item.title} className="w-full aspect-video object-cover" loading="lazy" />
                 <div className="absolute bottom-0 left-0 right-0 h-1 bg-zinc-600/50">
@@ -143,9 +156,22 @@ const HistoryCard: React.FC<{ item: HistoryItem, index: number }> = ({ item, ind
 const PlaylistCard: React.FC<{ title: string; subtitle: string; icon: string; coverImage: string | null; onClick: () => void; }> = ({ title, subtitle, icon, coverImage, onClick }) => {
     const { t } = useTranslation();
     const countText = subtitle.split('•')[1]?.trim() || t('videosCountText', {count: 0});
+    const handleGlow = useCallback(() => {
+        if (coverImage) {
+            document.body.style.setProperty('--dynamic-bg-image', `url(${coverImage})`);
+            document.body.classList.add('has-dynamic-bg');
+        }
+    }, [coverImage]);
 
     return (
-        <div onClick={onClick} className="flex-shrink-0 w-48 cursor-pointer group interactive-card-sm">
+        <div 
+            onClick={onClick} 
+            className="flex-shrink-0 w-48 cursor-pointer group interactive-card-sm glow-card-container focusable"
+            onMouseEnter={handleGlow}
+            onFocus={handleGlow}
+            tabIndex={0}
+            style={{ '--glow-image-url': coverImage ? `url(${coverImage})` : 'none' } as React.CSSProperties}
+        >
             <div className="relative overflow-hidden rounded-xl bg-zinc-800 shadow-lg aspect-video">
                 {coverImage ? (
                     <>
@@ -225,14 +251,28 @@ const FollowedActorsCarousel: React.FC = () => {
              ) : (
                 <div className="overflow-x-auto no-scrollbar -mx-4 pt-3">
                     <div className="flex gap-4 px-4">
-                        {movies.map((movie) => (
-                             <div key={movie.id} onClick={() => navigate(`/details/movie/${movie.id}`)} className="flex-shrink-0 w-32 cursor-pointer group interactive-card-sm">
+                        {movies.map((movie) => {
+                            const imageUrl = `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
+                            const handleGlow = () => {
+                                document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
+                                document.body.classList.add('has-dynamic-bg');
+                            };
+                             return (
+                             <div 
+                                key={movie.id} 
+                                onClick={() => navigate(`/details/movie/${movie.id}`)} 
+                                className="flex-shrink-0 w-32 cursor-pointer group interactive-card-sm glow-card-container focusable"
+                                onMouseEnter={handleGlow}
+                                onFocus={handleGlow}
+                                tabIndex={0}
+                                style={{ '--glow-image-url': `url(${imageUrl})` } as React.CSSProperties}
+                             >
                                 <div className="relative overflow-hidden rounded-xl bg-zinc-800 shadow-lg">
                                     <img src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`} alt={movie.title} className="w-full aspect-[3/4] object-cover" loading="lazy" />
                                 </div>
                                 <h3 className="mt-2 text-xs font-semibold text-white truncate">{movie.title}</h3>
                              </div>
-                        ))}
+                        )})}
                     </div>
                 </div>
             )}
@@ -249,6 +289,10 @@ const YouPage: React.FC = () => {
         navigate('/', { replace: true });
         return null;
     }
+
+    const handleMouseLeaveList = useCallback(() => {
+        document.body.classList.remove('has-dynamic-bg');
+    }, []);
     
     const history = getScreenSpecificData('history', []);
     const favorites = getScreenSpecificData('favorites', []);
@@ -289,7 +333,7 @@ const YouPage: React.FC = () => {
                     )}
                     
                     {historyRest.length > 0 && (
-                        <section className="animate-fade-in-up" style={{ animationDelay: '400ms' }}>
+                        <section className="animate-fade-in-up" style={{ animationDelay: '400ms' }} onMouseLeave={handleMouseLeaveList}>
                             <SectionHeader title={t('history')} onClick={() => { /* Navigate to full history page */ }} />
                             <div className="overflow-x-auto no-scrollbar -mx-4 pt-3">
                                 <div className="flex gap-4 px-4">
@@ -299,7 +343,7 @@ const YouPage: React.FC = () => {
                         </section>
                     )}
 
-                    <section className="animate-fade-in-up" style={{ animationDelay: '500ms' }}>
+                    <section className="animate-fade-in-up" style={{ animationDelay: '500ms' }} onMouseLeave={handleMouseLeaveList}>
                         <SectionHeader title={t('playlists')} onClick={() => { /* Navigate to full playlists page */ }} />
                         <div className="overflow-x-auto no-scrollbar -mx-4 pt-3">
                             <div className="flex gap-4 px-4">
@@ -325,10 +369,10 @@ const YouPage: React.FC = () => {
                                     onClick={() => {}}
                                 />
                             </div>
-                        </div>
+                        </div> 
                     </section>
 
-                    <div className="animate-fade-in-up" style={{ animationDelay: '600ms' }}>
+                    <div className="animate-fade-in-up" style={{ animationDelay: '600ms' }} onMouseLeave={handleMouseLeaveList}>
                         <FollowedActorsCarousel />
                     </div>
                     
