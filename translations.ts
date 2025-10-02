@@ -255,7 +255,6 @@ export const translations = {
     'failedToLoadDetails': 'Failed to load details.',
     'failedToLoadEpisodes': 'Could not load episodes.',
     'failedToLoadVideo': 'Could not load video. Please try again later.',
-    // FIX: Add translation key for when no stream links are found.
     'noStreamLinks': 'Could not load video stream. Please try again later.',
     'liked': 'You liked this!',
     'thankYouForFeedback': 'Thanks for your feedback.',
@@ -533,7 +532,6 @@ export const translations = {
     'failedToLoadDetails': 'فشل تحميل التفاصيل.',
     'failedToLoadEpisodes': 'لم نتمكن من تحميل الحلقات.',
     'failedToLoadVideo': 'تعذر تحميل الفيديو. حاول مرة أخرى لاحقاً.',
-    // FIX: Add translation key for when no stream links are found.
     'noStreamLinks': 'تعذر تحميل بث الفيديو. يرجى المحاولة مرة أخرى لاحقًا.',
     'liked': 'تم تسجيل إعجابك!',
     'thankYouForFeedback': 'شكراً على رأيك.',
