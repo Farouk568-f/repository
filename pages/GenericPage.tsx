@@ -14,10 +14,23 @@ const ItemCard: React.FC<{ item: Movie | FavoriteItem, index: number }> = ({ ite
     const title = item.title || item.name;
     const backdropPath = 'backdrop_path' in item ? item.backdrop_path : ('backdropPath' in item ? item.backdropPath : null);
     
-    const imageUrl = backdropPath ? `${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${backdropPath}` : null;
+    const glowImageUrl = backdropPath ? `${IMAGE_BASE_URL}w500${backdropPath}` : null;
     const type = 'media_type' in item ? item.media_type : ('type' in item ? item.type : (item.title ? 'movie' : 'tv'));
 
-    if (!imageUrl) return null;
+    if (!backdropPath) return null;
+
+    const handleGlow = useCallback(() => {
+        if (window.cineStreamBgTimeoutId) {
+            clearTimeout(window.cineStreamBgTimeoutId);
+        }
+        window.cineStreamBgTimeoutId = window.setTimeout(() => {
+            if (backdropPath) {
+                const imageUrl = `${IMAGE_BASE_URL}w300${backdropPath}`;
+                document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
+                document.body.classList.add('has-dynamic-bg');
+            }
+        }, 200);
+    }, [backdropPath]);
 
     const handleItemClick = () => {
         const itemForModal: Movie = {
@@ -31,14 +44,16 @@ const ItemCard: React.FC<{ item: Movie | FavoriteItem, index: number }> = ({ ite
 
     return (
         <div 
-            className="w-full animate-grid-item cursor-pointer focusable" 
-            style={{ animationDelay: `${index * 30}ms` }}
+            className="w-full animate-grid-item cursor-pointer focusable glow-card-container" 
+            style={{ '--glow-image-url': glowImageUrl ? `url(${glowImageUrl})` : 'none', animationDelay: `${index * 30}ms` } as React.CSSProperties}
             onClick={handleItemClick}
+            onMouseEnter={handleGlow}
+            onFocus={handleGlow}
             tabIndex={0}
         >
             <div className="relative overflow-hidden transition-all duration-300 ease-in-out rounded-lg shadow-lg bg-[var(--surface)] interactive-card">
                  <img
-                    src={imageUrl}
+                    src={`${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${backdropPath}`}
                     alt={title}
                     className="object-cover w-full aspect-video"
                     loading="lazy"
@@ -79,10 +94,25 @@ const GenericPage: React.FC<{
         const type = item.media_type || (item.title ? 'movie' : 'tv');
     
         if (!item.backdrop_path) return null;
+
+        const glowImageUrl = `${IMAGE_BASE_URL}w500${item.backdrop_path}`;
     
         const handleCardClick = () => {
             setModalItem(item);
         };
+
+        const handleGlow = useCallback(() => {
+            if (window.cineStreamBgTimeoutId) {
+                clearTimeout(window.cineStreamBgTimeoutId);
+            }
+            window.cineStreamBgTimeoutId = window.setTimeout(() => {
+                if (item.backdrop_path) {
+                    const imageUrl = `${IMAGE_BASE_URL}w300${item.backdrop_path}`;
+                    document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
+                    document.body.classList.add('has-dynamic-bg');
+                }
+            }, 200);
+        }, [item.backdrop_path]);
 
         const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
             if (e.key === 'Enter') {
@@ -119,9 +149,11 @@ const GenericPage: React.FC<{
     
         return (
             <div 
-                className="interactive-card-container w-full cursor-pointer animate-grid-item focusable"
-                style={{ animationDelay: `${index * 30}ms` }}
+                className="interactive-card-container w-full cursor-pointer animate-grid-item focusable glow-card-container"
+                style={{ '--glow-image-url': `url(${glowImageUrl})`, animationDelay: `${index * 30}ms` } as React.CSSProperties}
                 onClick={handleCardClick}
+                onMouseEnter={handleGlow}
+                onFocus={handleGlow}
                 onKeyDown={handleKeyDown}
                 tabIndex={0}
             >
@@ -273,6 +305,14 @@ const GenericPage: React.FC<{
         }
     };
 
+    const handleGridMouseLeave = useCallback(() => {
+        if (window.cineStreamBgTimeoutId) {
+            clearTimeout(window.cineStreamBgTimeoutId);
+            window.cineStreamBgTimeoutId = null;
+        }
+        document.body.classList.remove('has-dynamic-bg');
+    }, []);
+
     if (pageType === 'search') {
         const renderSearchContent = () => {
             if (loading) {
@@ -295,7 +335,7 @@ const GenericPage: React.FC<{
                     );
                 }
                 return (
-                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                     <div onMouseLeave={handleGridMouseLeave} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                         {allResults.map((item, index) => <SearchResultCard key={item.id} item={item} index={index} />)}
                     </div>
                 )
@@ -304,7 +344,7 @@ const GenericPage: React.FC<{
             // Initial view when no query
              return (
                 <div className="animate-fade-in space-y-8">
-                    <div>
+                    <div onMouseLeave={handleGridMouseLeave}>
                         <h2 className="mb-4 text-xl font-bold">{t('topMovies')}</h2>
                         {isInitialLoading ? (
                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
@@ -359,7 +399,7 @@ const GenericPage: React.FC<{
         }
 
         return (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div onMouseLeave={handleGridMouseLeave} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 {content.map((item, index) => {
                     if(pageType === 'downloads') {
                          return (
