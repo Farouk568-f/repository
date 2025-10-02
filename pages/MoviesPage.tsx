@@ -44,14 +44,23 @@ const PosterCard: React.FC<{ movie: Movie; onCardClick: (movie: Movie) => void; 
     const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const playerContainerId = useMemo(() => `poster-player-${movie.id}-${Math.random().toString(36).substring(2)}`, [movie.id]);
 
+    const handleGlow = useCallback(() => {
+        if (movie.backdrop_path) {
+            const imageUrl = `${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${movie.backdrop_path}`;
+            document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
+            document.body.classList.add('has-dynamic-bg');
+        }
+    }, [movie.backdrop_path]);
+
     const handleMouseEnter = useCallback(() => {
+        handleGlow();
         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
         hoverTimeoutRef.current = setTimeout(() => {
             if (document.querySelector(`.interactive-card-container[data-movie-id='${movie.id}']:hover`)) {
                setShowVideo(true);
             }
         }, 7000);
-    }, [movie.id]);
+    }, [movie.id, handleGlow]);
 
     const handleMouseLeave = useCallback(() => {
         if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
@@ -97,9 +106,19 @@ const PosterCard: React.FC<{ movie: Movie; onCardClick: (movie: Movie) => void; 
     }, []);
   
     if (!movie.backdrop_path) return null;
+    const imageUrl = `${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${movie.backdrop_path}`;
 
     return (
-        <div className="interactive-card-container flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px] cursor-pointer" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} data-movie-id={movie.id}>
+        <div 
+            className="interactive-card-container relative flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px] cursor-pointer glow-card-container focusable" 
+            onMouseEnter={handleMouseEnter} 
+            onMouseLeave={handleMouseLeave} 
+            data-movie-id={movie.id}
+            onClick={() => onCardClick(movie)}
+            onFocus={handleGlow}
+            tabIndex={0}
+            style={{ '--glow-image-url': `url(${imageUrl})` } as React.CSSProperties}
+        >
             <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-lg shadow-lg bg-[var(--surface)] interactive-card">
                 {isNetflixOriginal && ( <span style={{ fontFamily: "'Anton', sans-serif", textShadow: '1px 1px 3px rgba(0,0,0,0.5)' }} className="absolute top-2 left-2 z-10 text-3xl font-black text-[var(--primary)] pointer-events-none">N</span> )}
                 <div className="relative w-full aspect-video bg-black" onClick={() => onCardClick(movie)}>
@@ -130,8 +149,11 @@ const PosterCard: React.FC<{ movie: Movie; onCardClick: (movie: Movie) => void; 
 
 const ContentRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie: Movie) => void; zIndex?: number }> = ({ title, movies, onCardClick, zIndex }) => {
     if (!movies || movies.length === 0) return null;
+    const handleMouseLeaveList = useCallback(() => {
+        document.body.classList.remove('has-dynamic-bg');
+    }, []);
     return (
-        <div className="my-6 md:my-8" style={{ zIndex }}>
+        <div className="my-6 md:my-8" style={{ zIndex }} onMouseLeave={handleMouseLeaveList}>
             <h2 className="text-lg md:text-xl font-bold text-white mb-3">{title}</h2>
             <div className="overflow-x-auto no-scrollbar py-32 -my-32"><div className="flex flex-nowrap gap-x-6 px-6">{movies.map(movie => <PosterCard key={movie.id} movie={movie} onCardClick={onCardClick} />)}</div></div>
         </div>
@@ -175,11 +197,21 @@ const FilteredItemCard: React.FC<{ item: Movie, index: number }> = ({ item, inde
     const { setModalItem } = useProfile();
     if (!item.backdrop_path) return null;
     
+    const imageUrl = `${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${item.backdrop_path}`;
+    
+    const handleGlow = useCallback(() => {
+        document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
+        document.body.classList.add('has-dynamic-bg');
+    }, [imageUrl]);
+
     return (
         <div 
-            className="w-full animate-grid-item cursor-pointer" 
-            style={{ animationDelay: `${index * 30}ms` }}
+            className="w-full animate-grid-item cursor-pointer glow-card-container focusable relative" 
+            style={{ '--glow-image-url': `url(${imageUrl})`, animationDelay: `${index * 30}ms` } as React.CSSProperties}
             onClick={() => setModalItem({ ...item, media_type: 'movie' })}
+            onMouseEnter={handleGlow}
+            onFocus={handleGlow}
+            tabIndex={0}
         >
             <div className="relative overflow-hidden transition-all duration-300 ease-in-out rounded-lg shadow-lg bg-[var(--surface)] interactive-card">
                  <img
@@ -296,6 +328,10 @@ const MoviesPage: React.FC = () => {
     ], [data, t]);
 
     const renderContent = () => {
+        const handleGridMouseLeave = useCallback(() => {
+            document.body.classList.remove('has-dynamic-bg');
+        }, []);
+
         if (isFiltering) {
             if (isFilterLoading) {
                 return (
@@ -310,7 +346,7 @@ const MoviesPage: React.FC = () => {
                 return <p className="text-center text-gray-400 py-10">{t('noItemsFound', { title: '' })}</p>;
             }
             return (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                <div onMouseLeave={handleGridMouseLeave} className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                     {filteredMovies.map((movie, index) => (
                         <FilteredItemCard key={movie.id} item={movie} index={index} />
                     ))}
