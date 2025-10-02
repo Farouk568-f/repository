@@ -29,6 +29,7 @@ export interface Movie {
   number_of_episodes?: number;
   currentTime?: number;
   duration?: number;
+  // FIX: Add optional videos property based on API response for `append_to_response`.
   videos?: {
     results: {
       key: string;
@@ -116,6 +117,7 @@ export interface SubtitleTrack {
   display: string;
 }
 
+// FIX: Add ChatMessage interface for LiveRoomPage chat functionality.
 export interface ChatMessage {
   id: number;
   user: {
@@ -126,6 +128,7 @@ export interface ChatMessage {
   isJoin?: boolean;
 }
 
+// FIX: Define and export StreamLink interface to be used across the application.
 export interface StreamLink {
   quality: string;
   url: string;
@@ -216,6 +219,5 @@ declare global {
       }
     };
     onYouTubeIframeAPIReady?: () => void;
-    cineStreamBgTimeoutId?: number | null;
   }
 }
