@@ -111,26 +111,12 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
   const [isFocused, setIsFocused] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
-  const handleInteraction = useCallback(() => {
-    if (window.cineStreamBgTimeoutId) {
-        clearTimeout(window.cineStreamBgTimeoutId);
-    }
-    window.cineStreamBgTimeoutId = window.setTimeout(() => {
-        if (movie.backdrop_path) {
-            const backgroundImageUrl = `${IMAGE_BASE_URL}w300${movie.backdrop_path}`;
-            document.body.style.setProperty('--dynamic-bg-image', `url(${backgroundImageUrl})`);
-            document.body.classList.add('has-dynamic-bg');
-        }
-    }, 200);
-  }, [movie.backdrop_path]);
-
   const handleFocus = useCallback(() => {
     setIsFocused(true);
     if (cardRef.current) {
       onCardFocus(cardRef.current);
     }
-    handleInteraction();
-  }, [onCardFocus, handleInteraction]);
+  }, [onCardFocus]);
 
   const handleBlur = useCallback(() => {
     setIsFocused(false);
@@ -157,22 +143,20 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
     }, [movie.title, movie.name]);
 
     if (!movie.backdrop_path) return null;
-    const continueWatchingImageUrl = `${IMAGE_BASE_URL}w500${movie.backdrop_path}`;
 
     return (
         <div
             ref={cardRef}
-            className="flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px] cursor-pointer focusable continue-watching-card-wrapper glow-card-container rounded-lg"
+            className="flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px] cursor-pointer focusable continue-watching-card-wrapper"
             tabIndex={0}
             onClick={() => onCardClick(movie)}
             onKeyDown={(e) => e.key === 'Enter' && onCardClick(movie)}
             onFocus={handleFocus}
-            onMouseEnter={handleInteraction}
             onBlur={handleBlur}
-            style={{ '--glow-image-url': `url(${continueWatchingImageUrl})`, animationDelay: `${index * 50}ms` } as React.CSSProperties}
+            style={{ animationDelay: `${index * 50}ms` }}
         >
-            <div className="relative transition-all duration-300 ease-in-out transform rounded-lg shadow-lg group hover:scale-105 hover:shadow-2xl">
-                <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+            <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-lg shadow-lg bg-[var(--surface)] group hover:scale-105 hover:shadow-2xl">
+                <div className="relative w-full aspect-video bg-black">
                     <img
                         src={`${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${movie.backdrop_path}`}
                         alt={mainTitle}
@@ -206,7 +190,6 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
 
 
   const handleMouseEnter = useCallback(() => {
-    handleInteraction();
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
     hoverTimeoutRef.current = setTimeout(() => {
         // A simple querySelector check to ensure the element is still hovered by the user
@@ -215,7 +198,7 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
            setShowVideo(true);
         }
     }, 7000); // 7-second delay as requested
-  }, [movie.id, handleInteraction]);
+  }, [movie.id]);
 
   const handleMouseLeave = useCallback(() => {
     if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
@@ -290,12 +273,11 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
   }, []);
   
   if (!movie.backdrop_path) return null;
-  const imageUrl = `${IMAGE_BASE_URL}w500${movie.backdrop_path}`;
 
   return (
     <div 
         ref={cardRef}
-        className="interactive-card-container relative flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px] cursor-pointer focusable glow-card-container rounded-lg"
+        className="interactive-card-container relative flex-shrink-0 w-[24vw] min-w-[220px] max-w-[320px] cursor-pointer focusable"
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         data-movie-id={movie.id}
@@ -304,13 +286,13 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
         onKeyDown={(e) => e.key === 'Enter' && onCardClick(movie)}
         onFocus={handleFocus}
         onBlur={handleBlur}
-        style={{ '--glow-image-url': `url(${imageUrl})`, animationDelay: `${index * 50}ms` } as React.CSSProperties}
+        style={{ animationDelay: `${index * 50}ms` }}
     >
-      <div className="relative transition-all duration-300 ease-in-out transform rounded-lg shadow-lg interactive-card">
+      <div className="relative overflow-hidden transition-all duration-300 ease-in-out transform rounded-lg shadow-lg bg-[var(--surface)] interactive-card">
         {isNetflixOriginal && (
             <span style={{ fontFamily: "'Anton', sans-serif", textShadow: '1px 1px 3px rgba(0,0,0,0.5)' }} className="absolute top-2 left-2 z-10 text-3xl font-black text-[var(--primary)] pointer-events-none">N</span>
         )}
-        <div className="relative w-full aspect-video bg-black rounded-t-lg overflow-hidden">
+        <div className="relative w-full aspect-video bg-black">
             <img
               src={`${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${movie.backdrop_path}`}
               alt={movie.title || movie.name}
@@ -330,7 +312,7 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
                  )}
             </div>
         </div>
-        <div className="quick-view bg-[var(--surface)] px-3 rounded-b-lg">
+        <div className="quick-view bg-[var(--surface)] px-3">
            <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <button onClick={() => navigate('/player', { state: { item: movie, type } })} className="w-9 h-9 flex items-center justify-center text-black bg-white rounded-full text-lg btn-press"><i className="fas fa-play"></i></button>
@@ -354,7 +336,7 @@ const PosterCard: React.FC<{ movie: Movie, onCardClick: (movie: Movie) => void, 
             </div>
         </div>
         {isRecentlyAdded && (
-            <div className="absolute top-2 right-2 z-10">
+            <div className="absolute top-2 right-2">
                 <span className="px-2 py-1 text-xs font-bold text-white bg-red-600 rounded-sm shadow-md whitespace-nowrap">
                     {t('recentlyAdded')}
                 </span>
@@ -431,14 +413,6 @@ const ContentRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie
         }
     }, []);
 
-    const handleMouseLeaveList = useCallback(() => {
-        if (window.cineStreamBgTimeoutId) {
-            clearTimeout(window.cineStreamBgTimeoutId);
-            window.cineStreamBgTimeoutId = null;
-        }
-        document.body.classList.remove('has-dynamic-bg');
-    }, []);
-
 
     return (
         <div 
@@ -451,7 +425,6 @@ const ContentRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie
                     setIsRowActive(false);
                 }
             }}
-            onMouseLeave={handleMouseLeaveList}
         >
             <div className="flex items-baseline justify-between mb-3 px-6">
                  <h2 className={`text-lg md:text-xl font-bold text-white transition-all duration-300 ease-out origin-left ${isRowActive ? 'scale-100' : 'scale-90 text-zinc-400'}`}>{title}</h2>
