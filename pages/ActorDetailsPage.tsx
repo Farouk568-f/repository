@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchFromTMDB } from '../services/apiService';
 import { Actor, Movie } from '../types';
@@ -23,13 +23,29 @@ const FilmographyListItem: React.FC<{ item: Movie, index: number }> = ({ item, i
     navigate(`/details/${type}/${item.id}`);
   };
 
+  const handleGlow = useCallback(() => {
+    if (window.cineStreamBgTimeoutId) {
+        clearTimeout(window.cineStreamBgTimeoutId);
+    }
+    window.cineStreamBgTimeoutId = window.setTimeout(() => {
+        if (item.backdrop_path) {
+            const imageUrl = `${IMAGE_BASE_URL}w300${item.backdrop_path}`;
+            document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
+            document.body.classList.add('has-dynamic-bg');
+        }
+    }, 200);
+  }, [item.backdrop_path]);
+
   if (!item.backdrop_path) return null;
 
   return (
     <div
       onClick={handleClick}
-      className="flex items-start gap-4 cursor-pointer group animate-fade-in-up p-2 rounded-lg transition-colors duration-200 hover:bg-white/5"
-      style={{ animationDelay: `${index * 40}ms` }}
+      onMouseEnter={handleGlow}
+      onFocus={handleGlow}
+      className="flex items-start gap-4 cursor-pointer group animate-fade-in-up p-2 rounded-lg transition-colors duration-200 hover:bg-white/5 glow-card-container focusable"
+      style={{ '--glow-image-url': item.backdrop_path ? `url(${IMAGE_BASE_URL}w500${item.backdrop_path})` : 'none', animationDelay: `${index * 40}ms` } as React.CSSProperties}
+      tabIndex={0}
     >
       <div className="relative flex-shrink-0 w-40 md:w-48 overflow-hidden rounded-lg shadow-md">
         <img
@@ -92,6 +108,14 @@ const ActorDetailsPage: React.FC = () => {
     const handleJoin = () => {
         setToast({ message: t('thankYouForFeedback'), type: 'success' });
     };
+
+    const handleMouseLeaveList = useCallback(() => {
+        if (window.cineStreamBgTimeoutId) {
+            clearTimeout(window.cineStreamBgTimeoutId);
+            window.cineStreamBgTimeoutId = null;
+        }
+        document.body.classList.remove('has-dynamic-bg');
+    }, []);
 
     if (loading || !actor) {
         return (
@@ -192,7 +216,7 @@ const ActorDetailsPage: React.FC = () => {
                                 </div>
                             </section>
                         )}
-                        <section className="space-y-4">
+                        <section className="space-y-4" onMouseLeave={handleMouseLeaveList}>
                             <h3 className="text-lg font-bold text-white">{t('filmography')}</h3>
                             {filmography.slice(1, 11).map((item, index) => (
                                 <FilmographyListItem key={item.id} item={item} index={index + 1} />
@@ -204,7 +228,7 @@ const ActorDetailsPage: React.FC = () => {
                 return (
                     <div className="p-4 animate-fade-in" style={{ animationDelay: '600ms' }}>
                         <h2 className="text-xl font-bold text-white mb-4">{t('actorFilmography', {name: actor.name})}</h2>
-                        <div className="space-y-4">
+                        <div className="space-y-4" onMouseLeave={handleMouseLeaveList}>
                             {filmography.map((item, index) => (
                                 <FilmographyListItem key={item.id} item={item} index={index} />
                             ))}
