@@ -154,7 +154,7 @@
         z-index: 20;
       }
       .interactive-card-container:hover .interactive-card {
-        transform: scale(1.1) translateY(-25%);
+        transform: scale(1.05) translateY(-15%);
         box-shadow: 0 10px 30px rgba(0,0,0,0.5);
       }
       .interactive-card-container:hover .quick-view {
@@ -449,6 +449,7 @@
         z-index: -1;
         transition: opacity 0.4s ease-out;
         border-radius: 1.25rem; /* Approximation */
+        will-change: opacity;
       }
       .glow-card-container:hover::before,
       .glow-card-container:focus-within::before {
