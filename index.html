@@ -33,23 +33,7 @@
         background-attachment: fixed;
         transition: background 0.5s ease;
       }
-       /* New dynamic background effect */
-      body::before {
-        content: '';
-        position: fixed;
-        inset: 0;
-        background-image: var(--dynamic-bg-image);
-        background-position: center;
-        background-size: cover;
-        filter: blur(20px) brightness(0.6); /* OPTIMIZED: Reduced blur from 50px for performance */
-        z-index: -1;
-        opacity: 0;
-        transition: opacity 0.8s ease-in-out;
-        will-change: opacity;
-      }
-      body.has-dynamic-bg::before {
-        opacity: 0.3;
-      }
+      
       body.modal-open {
         overflow: hidden;
       }
