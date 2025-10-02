@@ -17,4 +17,4 @@ export const AVAILABLE_PROVIDERS = [
     { id: 'arabic-toons', name: 'Arabic Toons' },
     { id: 'ristoanime', name: 'RistoAnime' },
     { id: 'td', name: 'TD' },
-];
+]; 
