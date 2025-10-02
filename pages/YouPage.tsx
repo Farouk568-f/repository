@@ -6,6 +6,17 @@ import { HistoryItem, FavoriteItem, DownloadItem, Movie } from '../types';
 import Layout from '../components/Layout';
 import { fetchFromTMDB } from '../services/apiService';
 
+// FIX: Added formatTime utility function to format duration in seconds.
+const formatTime = (seconds: number) => {
+    if (isNaN(seconds) || seconds < 0) return '00:00';
+    const date = new Date(seconds * 1000);
+    const hh = date.getUTCHours();
+    const mm = date.getUTCMinutes().toString().padStart(2, '0');
+    const ss = date.getUTCSeconds().toString().padStart(2, '0');
+    if (hh > 0) return `${hh.toString().padStart(2, '0')}:${mm}:${ss}`;
+    return `${mm}:${ss}`;
+};
+
 const ProfileHeader: React.FC<{ profile: any; onSearch: () => void; onSettings: () => void }> = ({ profile, onSearch, onSettings }) => {
     const { t } = useTranslation();
     return (
@@ -116,273 +127,115 @@ const HistoryCard: React.FC<{ item: HistoryItem, index: number }> = ({ item, ind
     const views = (Math.random() * 100).toFixed(0) + 'K';
     const timeAgo = `${index + 2} hour${index > 0 ? 's' : ''} ago`;
 
-    const imageUrl = item.itemImage;
     const handleGlow = useCallback(() => {
-        document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
-        document.body.classList.add('has-dynamic-bg');
-    }, [imageUrl]);
+        if (window.cineStreamBgTimeoutId) {
+            clearTimeout(window.cineStreamBgTimeoutId);
+        }
+        window.cineStreamBgTimeoutId = window.setTimeout(() => {
+            if (item.itemImage) {
+                const imageUrl = item.itemImage.replace('w780', 'w300');
+                document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
+                document.body.classList.add('has-dynamic-bg');
+            }
+        }, 200);
+    }, [item.itemImage]);
 
     return (
         <div 
             onClick={handleClick} 
-            className="flex-shrink-0 w-64 cursor-pointer group interactive-card glow-card-container focusable"
+            className="flex items-start gap-4 p-2 rounded-lg cursor-pointer group animate-fade-in-up transition-colors hover:bg-white/5 focusable glow-card-container"
+            style={{ '--glow-image-url': item.itemImage ? `url(${item.itemImage.replace('w780', 'w500')})` : 'none', animationDelay: `${index * 40}ms` } as React.CSSProperties}
             onMouseEnter={handleGlow}
             onFocus={handleGlow}
             tabIndex={0}
-            style={{ '--glow-image-url': `url(${imageUrl})` } as React.CSSProperties}
+            // FIX: The type of `item.type` can only be 'movie' or 'tv', so this comparison was always false.
+            data-is-live="false"
         >
-            <div className="relative overflow-hidden rounded-xl bg-zinc-800 shadow-lg">
-                <img src={item.itemImage} alt={item.title} className="w-full aspect-video object-cover" loading="lazy" />
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-zinc-600/50">
+            <div className="relative w-40 flex-shrink-0 overflow-hidden rounded-lg shadow-lg aspect-video interactive-card">
+                <img src={item.itemImage} alt={item.title} className="w-full h-full object-cover transition-transform group-hover:scale-105" />
+                <div className="absolute bottom-1 right-1 px-1.5 py-0.5 text-xs font-bold text-white bg-black/60 rounded-sm">{formatTime(item.duration)}</div>
+                <div className="absolute bottom-0 left-0 w-full h-1 bg-white/30">
                     <div className="h-full bg-red-600" style={{ width: `${progress}%` }}></div>
                 </div>
-                 <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
-                    {new Date(item.duration * 1000).toISOString().substr(14, 5)}
-                 </span>
             </div>
-            <div className="flex items-start gap-3 pt-3">
-                <div className="flex-1">
-                    <h3 className="font-semibold text-white line-clamp-2 leading-tight">{item.title}</h3>
-                    <p className="text-xs text-gray-400 mt-1">{`CineStream • ${views} views • ${timeAgo}`}</p>
+            <div className="pt-1 flex-1">
+                <h3 className="text-sm font-semibold text-white line-clamp-2 leading-tight">{item.title}</h3>
+                <div className="flex items-center gap-2 text-xs text-gray-400 mt-1.5">
+                    <span>{views} views</span>
+                    <span>•</span>
+                    <span>{timeAgo}</span>
                 </div>
-                <button onClick={(e) => e.stopPropagation()} className="p-1 text-gray-400 hover:text-white">
-                    <i className="fa-solid fa-ellipsis-vertical"></i>
-                </button>
             </div>
         </div>
     );
 };
 
-const PlaylistCard: React.FC<{ title: string; subtitle: string; icon: string; coverImage: string | null; onClick: () => void; }> = ({ title, subtitle, icon, coverImage, onClick }) => {
-    const { t } = useTranslation();
-    const countText = subtitle.split('•')[1]?.trim() || t('videosCountText', {count: 0});
-    const handleGlow = useCallback(() => {
-        if (coverImage) {
-            document.body.style.setProperty('--dynamic-bg-image', `url(${coverImage})`);
-            document.body.classList.add('has-dynamic-bg');
-        }
-    }, [coverImage]);
-
-    return (
-        <div 
-            onClick={onClick} 
-            className="flex-shrink-0 w-48 cursor-pointer group interactive-card-sm glow-card-container focusable"
-            onMouseEnter={handleGlow}
-            onFocus={handleGlow}
-            tabIndex={0}
-            style={{ '--glow-image-url': coverImage ? `url(${coverImage})` : 'none' } as React.CSSProperties}
-        >
-            <div className="relative overflow-hidden rounded-xl bg-zinc-800 shadow-lg aspect-video">
-                {coverImage ? (
-                    <>
-                        <img src={coverImage} alt={title} className="w-full h-full object-cover" loading="lazy" />
-                        <div className="absolute inset-0 bg-black/60 flex items-center justify-end p-3">
-                            <div className="flex flex-col items-center text-white">
-                                <i className={`${icon} text-2xl`}></i>
-                                <span className="text-xs font-bold mt-1">{countText}</span>
-                            </div>
-                        </div>
-                    </>
-                ) : (
-                    <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-900">
-                        <i className={`${icon} text-4xl text-zinc-400`}></i>
-                        <p className="text-sm font-semibold text-zinc-400 mt-2">{countText}</p>
-                    </div>
-                )}
-            </div>
-             <div className="pt-2">
-                <h3 className="font-semibold text-white truncate">{title}</h3>
-                <p className="text-xs text-gray-400">{subtitle.split('•')[0]?.trim()}</p>
-            </div>
-        </div>
-    );
-};
-
-const ActionLinkRow: React.FC<{ icon: string; text: string; onClick?: () => void }> = ({ icon, text, onClick }) => (
-  <button onClick={onClick} className="flex items-center gap-4 w-full p-2.5 rounded-lg hover:bg-zinc-800 transition-colors btn-press">
-    <i className={`${icon} w-6 text-center text-xl text-gray-300`}></i>
-    <span className="font-medium text-white">{text}</span>
-    <i className="fa-solid fa-chevron-right text-gray-500 ms-auto"></i>
-  </button>
-);
-
-
-const FollowedActorsCarousel: React.FC = () => {
-    const { activeProfile } = useProfile();
-    const [movies, setMovies] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
-    const { t } = useTranslation();
+export const YouPage: React.FC = () => {
     const navigate = useNavigate();
-
+    const { t } = useTranslation();
+    const { activeProfile, getScreenSpecificData } = useProfile();
+    const [history, setHistory] = useState<HistoryItem[]>([]);
+    
     useEffect(() => {
-        const fetchContent = async () => {
-            const followedActorIds = activeProfile?.followedActors || [];
-            if (followedActorIds.length > 0) {
-                setLoading(true);
-                try {
-                    const promises = followedActorIds.slice(0, 5).map(id => fetchFromTMDB(`/person/${id}/movie_credits`));
-                    const results = await Promise.all(promises);
-                    const allMovies = results
-                        .flatMap(res => res.cast || [])
-                        .filter((m: any) => m.poster_path)
-                        .sort((a,b) => b.popularity - a.popularity);
-                    
-                    const uniqueMovies = Array.from(new Map(allMovies.map(m => [m.id, m])).values()).slice(0, 10);
-                    setMovies(uniqueMovies);
-                } catch (err) {
-                    console.error("Failed to fetch followed actors content", err);
-                } finally {
-                    setLoading(false);
-                }
-            } else {
-                setLoading(false);
-            }
-        };
-        fetchContent();
-    }, [activeProfile?.followedActors]);
-
-    if (movies.length === 0) return null;
-
-    return (
-        <section>
-            <SectionHeader title={t('fromActorsYouFollow')} />
-             {loading ? (
-                <div className="h-48 flex items-center justify-center"><div className="w-8 h-8 border-2 border-t-transparent border-zinc-500 rounded-full animate-spin"></div></div>
-             ) : (
-                <div className="overflow-x-auto no-scrollbar -mx-4 pt-3">
-                    <div className="flex gap-4 px-4">
-                        {movies.map((movie) => {
-                            const imageUrl = `https://image.tmdb.org/t/p/w500${movie.poster_path}`;
-                            const handleGlow = () => {
-                                document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
-                                document.body.classList.add('has-dynamic-bg');
-                            };
-                             return (
-                             <div 
-                                key={movie.id} 
-                                onClick={() => navigate(`/details/movie/${movie.id}`)} 
-                                className="flex-shrink-0 w-32 cursor-pointer group interactive-card-sm glow-card-container focusable"
-                                onMouseEnter={handleGlow}
-                                onFocus={handleGlow}
-                                tabIndex={0}
-                                style={{ '--glow-image-url': `url(${imageUrl})` } as React.CSSProperties}
-                             >
-                                <div className="relative overflow-hidden rounded-xl bg-zinc-800 shadow-lg">
-                                    <img src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`} alt={movie.title} className="w-full aspect-[3/4] object-cover" loading="lazy" />
-                                </div>
-                                <h3 className="mt-2 text-xs font-semibold text-white truncate">{movie.title}</h3>
-                             </div>
-                        )})}
-                    </div>
-                </div>
-            )}
-        </section>
-    );
-}
-
-const YouPage: React.FC = () => {
-    const { activeProfile, switchProfile, getScreenSpecificData } = useProfile();
-    const navigate = useNavigate();
-    const { t } = useTranslation();
-
-    if (!activeProfile) {
-        navigate('/', { replace: true });
-        return null;
-    }
+        if (activeProfile) {
+            setHistory(getScreenSpecificData('history', []));
+        }
+    }, [activeProfile, getScreenSpecificData]);
 
     const handleMouseLeaveList = useCallback(() => {
+        if (window.cineStreamBgTimeoutId) {
+            clearTimeout(window.cineStreamBgTimeoutId);
+            window.cineStreamBgTimeoutId = null;
+        }
         document.body.classList.remove('has-dynamic-bg');
     }, []);
-    
-    const history = getScreenSpecificData('history', []);
-    const favorites = getScreenSpecificData('favorites', []);
-    const downloads = getScreenSpecificData('downloads', []);
-    
-    const lastWatched = history.length > 0 ? history[0] : null;
-    const historyRest = history.length > 1 ? history.slice(1) : [];
 
-    const getCoverImage = (items: (FavoriteItem | DownloadItem)[]) => {
-        if (items.length > 0) {
-            const item = items[0];
-            if ('poster' in item && item.poster) return item.poster;
-        }
-        return null;
-    };
+    if (!activeProfile) {
+        return (
+            <Layout>
+                <div className="flex items-center justify-center h-screen">
+                    <div className="w-16 h-16 border-4 border-t-transparent border-[var(--primary)] rounded-full animate-spin"></div>
+                </div>
+            </Layout>
+        );
+    }
+    
+    const latestHistoryItem = history[0];
+    const otherHistoryItems = history.slice(1, 5);
 
     return (
         <Layout>
-            <div className="bg-transparent text-white min-h-screen pb-10">
-                <div className="p-4 pt-24 space-y-8">
-                    <div className="animate-fade-in-up" style={{ animationDelay: '100ms' }}>
-                        <ProfileHeader 
-                            profile={activeProfile} 
-                            onSearch={() => navigate('/search')}
-                            onSettings={() => navigate('/settings')}
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 animate-fade-in-up" style={{ animationDelay: '200ms' }}>
-                        <ActionButton icon="fa-solid fa-users" text={t('switchAccount')} onClick={switchProfile} />
-                        <ActionButton icon="fa-solid fa-person-circle-question" text={t('helpAndFeedback')} onClick={() => {}} />
-                    </div>
-
-                    {lastWatched && (
-                        <div className="animate-fade-in-up" style={{ animationDelay: '300ms' }}>
-                            <ResumeCard item={lastWatched} />
-                        </div>
-                    )}
-                    
-                    {historyRest.length > 0 && (
-                        <section className="animate-fade-in-up" style={{ animationDelay: '400ms' }} onMouseLeave={handleMouseLeaveList}>
-                            <SectionHeader title={t('history')} onClick={() => { /* Navigate to full history page */ }} />
-                            <div className="overflow-x-auto no-scrollbar -mx-4 pt-3">
-                                <div className="flex gap-4 px-4">
-                                    {historyRest.map((item, index) => <HistoryCard key={item.timestamp} item={item} index={index}/>)}
-                                </div>
-                            </div>
-                        </section>
-                    )}
-
-                    <section className="animate-fade-in-up" style={{ animationDelay: '500ms' }} onMouseLeave={handleMouseLeaveList}>
-                        <SectionHeader title={t('playlists')} onClick={() => { /* Navigate to full playlists page */ }} />
-                        <div className="overflow-x-auto no-scrollbar -mx-4 pt-3">
-                            <div className="flex gap-4 px-4">
-                               <PlaylistCard 
-                                    title={t('likedVideos')} 
-                                    subtitle={`Playlist • ${t('videosCountText', {count: favorites.length})}`}
-                                    icon="fa-solid fa-thumbs-up"
-                                    coverImage={getCoverImage(favorites)}
-                                    onClick={() => navigate('/favorites')}
-                                />
-                                <PlaylistCard 
-                                    title={t('downloads')}
-                                    subtitle={`Playlist • ${t('videosCountText', {count: downloads.length})}`}
-                                    icon="fa-solid fa-download"
-                                    coverImage={getCoverImage(downloads)}
-                                    onClick={() => navigate('/downloads')}
-                                />
-                                <PlaylistCard 
-                                    title={t('watchLater')} 
-                                    subtitle={`Playlist • ${t('videosCountText', {count: 0})}`}
-                                    icon="fa-solid fa-clock"
-                                    coverImage={'https://images.unsplash.com/photo-1505330622279-bf7d7fc918f4?q=80&w=2940&auto=format&fit=crop'}
-                                    onClick={() => {}}
-                                />
-                            </div>
-                        </div> 
-                    </section>
-
-                    <div className="animate-fade-in-up" style={{ animationDelay: '600ms' }} onMouseLeave={handleMouseLeaveList}>
-                        <FollowedActorsCarousel />
-                    </div>
-                    
-                     <section className="border-t border-zinc-800 pt-6 space-y-1 animate-fade-in-up" style={{ animationDelay: '700ms' }}>
-                        <ActionLinkRow icon="fa-solid fa-sliders" text={t('settings')} onClick={() => navigate('/settings')} />
-                     </section>
+            <div className="pt-24 px-4 space-y-8">
+                <ProfileHeader 
+                    profile={activeProfile} 
+                    onSearch={() => navigate('/search')} 
+                    onSettings={() => navigate('/settings')} 
+                />
+                <div className="grid grid-cols-3 gap-2">
+                    <ActionButton icon="fa-solid fa-clock-rotate-left" text={t('history')} onClick={() => {}} />
+                    <ActionButton icon="fa-solid fa-list" text={t('playlists')} onClick={() => {}} />
+                    <ActionButton icon="fa-solid fa-thumbs-up" text={t('likedVideos')} onClick={() => {}} />
                 </div>
+                
+                {latestHistoryItem && (
+                    <section className="space-y-4">
+                        <SectionHeader title={t('continueWatching')} />
+                        <ResumeCard item={latestHistoryItem} />
+                    </section>
+                )}
+                
+                {otherHistoryItems.length > 0 && (
+                     <section className="space-y-4" onMouseLeave={handleMouseLeaveList}>
+                        <SectionHeader title={t('history')} onClick={() => {}} />
+                        {otherHistoryItems.map((item, index) => (
+                            <HistoryCard key={item.timestamp} item={item} index={index}/>
+                        ))}
+                    </section>
+                )}
             </div>
         </Layout>
     );
 };
 
+// FIX: Add default export to be consumable by other modules.
 export default YouPage;
