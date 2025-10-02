@@ -434,7 +434,7 @@ const ContentRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie
                     ref={rowContentRef}
                     className="flex flex-nowrap gap-x-6 px-6"
                     style={{
-                        transition: 'transform 0.4s ease-in-out',
+                        transition: 'transform 0.3s ease-out',
                         willChange: 'transform'
                     }}
                 >
@@ -709,7 +709,7 @@ const HomePage: React.FC = () => {
                   <ContentRow title={t('disneyMagic')} movies={data.disneyMagic} onCardClick={handleOpenModal} zIndex={8} />
                 </div>
             </>
-          ) : ( 
+          ) : (  
             <>
                 <Hero movie={data.hero} isKids={isKidsMode} />
                 <div className="relative z-10 mt-12 space-y-20">
