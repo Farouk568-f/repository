@@ -359,7 +359,6 @@ const ContentRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie
     const [isRowActive, setIsRowActive] = useState(false);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const rowContentRef = useRef<HTMLDivElement>(null);
-    const [translateX, setTranslateX] = useState(0);
 
     const rowRef = useRef<HTMLDivElement>(null);
     const [isInView, setIsInView] = useState(false);
@@ -409,7 +408,9 @@ const ContentRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie
             targetScroll = 0;
         }
 
-        setTranslateX(-targetScroll);
+        if (rowContentRef.current) {
+            rowContentRef.current.style.transform = `translateX(${-targetScroll}px)`;
+        }
     }, []);
 
 
@@ -433,8 +434,8 @@ const ContentRow: React.FC<{ title: string; movies: Movie[]; onCardClick: (movie
                     ref={rowContentRef}
                     className="flex flex-nowrap gap-x-6 px-6"
                     style={{
-                        transform: `translateX(${translateX}px)`,
-                        transition: 'transform 0.4s ease-in-out'
+                        transition: 'transform 0.4s ease-in-out',
+                        willChange: 'transform'
                     }}
                 >
                     {movies.map((movie, index) => <PosterCard key={`${category || 'carousel'}-${movie.id}`} movie={movie} onCardClick={onCardClick} isNetflixOriginal={isNetflixRow} isRecentlyAdded={isRecentlyAddedRow} onCardFocus={handleCardFocus} index={index} isContinueWatching={isContinueWatchingRow} />)}
@@ -708,7 +709,7 @@ const HomePage: React.FC = () => {
                   <ContentRow title={t('disneyMagic')} movies={data.disneyMagic} onCardClick={handleOpenModal} zIndex={8} />
                 </div>
             </>
-          ) : (
+          ) : ( 
             <>
                 <Hero movie={data.hero} isKids={isKidsMode} />
                 <div className="relative z-10 mt-12 space-y-20">
