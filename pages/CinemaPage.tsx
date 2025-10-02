@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchFromTMDB } from '../services/apiService';
 import { Movie } from '../types';
@@ -17,10 +17,20 @@ const SpotlightCinemaCard: React.FC<{ item: Movie; index: number }> = ({ item, i
     const type = item.media_type || (item.title ? 'movie' : 'tv');
     const viewers = useMemo(() => Math.floor(Math.random() * 5000) + 100, [item.id]);
 
+    const imageUrl = `${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${item.backdrop_path}`;
+    const handleGlow = useCallback(() => {
+        document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
+        document.body.classList.add('has-dynamic-bg');
+    }, [imageUrl]);
+
     return (
         <div
             onClick={() => navigate(`/live/${type}/${item.id}`)}
-            className="w-[80vw] sm:w-96 flex-shrink-0 cursor-pointer snap-center"
+            className="w-[80vw] sm:w-96 flex-shrink-0 cursor-pointer snap-center glow-card-container focusable"
+            onMouseEnter={handleGlow}
+            onFocus={handleGlow}
+            tabIndex={0}
+            style={{ '--glow-image-url': `url(${imageUrl})` } as React.CSSProperties}
         >
             <div className="relative overflow-hidden rounded-lg shadow-xl bg-[var(--surface)] aspect-video interactive-card">
                 <img
@@ -53,8 +63,11 @@ const SpotlightCinemaCard: React.FC<{ item: Movie; index: number }> = ({ item, i
 
 const SpotlightCinemaRow: React.FC<{ title: string; items: Movie[] }> = ({ title, items }) => {
     if (!items || items.length === 0) return null;
+    const handleMouseLeaveList = useCallback(() => {
+        document.body.classList.remove('has-dynamic-bg');
+    }, []);
     return (
-        <div className="my-8">
+        <div className="my-8" onMouseLeave={handleMouseLeaveList}>
             <h2 className="text-2xl font-bold text-white px-4 mb-4">{title}</h2>
             <div className="overflow-x-auto no-scrollbar snap-x snap-mandatory">
                 <div className="flex flex-nowrap gap-x-4 pb-4 px-4 scroll-px-4">
@@ -79,11 +92,20 @@ const CinemaCard: React.FC<{ item: Movie; index: number }> = ({ item, index }) =
     };
 
     if (!item.poster_path) return null;
+    const imageUrl = `${IMAGE_BASE_URL}${POSTER_SIZE}${item.poster_path}`;
+    const handleGlow = useCallback(() => {
+        document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
+        document.body.classList.add('has-dynamic-bg');
+    }, [imageUrl]);
 
     return (
         <div
             onClick={handleClick}
-            className="w-full cursor-pointer group"
+            className="w-full cursor-pointer group glow-card-container focusable"
+            onMouseEnter={handleGlow}
+            onFocus={handleGlow}
+            tabIndex={0}
+            style={{ '--glow-image-url': `url(${imageUrl})` } as React.CSSProperties}
         >
             <div className="relative overflow-hidden rounded-lg shadow-lg bg-[var(--surface)] aspect-[2/3] interactive-card">
                 <img
@@ -116,8 +138,11 @@ const CinemaCard: React.FC<{ item: Movie; index: number }> = ({ item, index }) =
 
 const CinemaCategoryRow: React.FC<{ title: string; items: Movie[] }> = ({ title, items }) => {
     if (!items || items.length === 0) return null;
+    const handleMouseLeaveList = useCallback(() => {
+        document.body.classList.remove('has-dynamic-bg');
+    }, []);
     return (
-        <div className="my-8">
+        <div className="my-8" onMouseLeave={handleMouseLeaveList}>
             <h2 className="text-2xl font-bold text-white px-4 mb-4">{title}</h2>
             <div className="overflow-x-auto no-scrollbar">
                 <div className="flex flex-nowrap gap-x-4 pb-4 px-4">
