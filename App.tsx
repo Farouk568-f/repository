@@ -12,7 +12,8 @@ import DetailsPage from './pages/DetailsPage';
 import CinemaPage from './pages/CinemaPage';
 import LiveRoomPage from './pages/LiveRoomPage';
 import ShortsPage from './pages/ShortsPage';
-import YouPage from './pages/YouPage';
+// FIX: `YouPage` does not have a default export. Using a named import instead.
+import { YouPage } from './pages/YouPage';
 import { ProfileProvider, useProfile } from './contexts/ProfileContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { PlayerProvider } from './contexts/PlayerContext';
