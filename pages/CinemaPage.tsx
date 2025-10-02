@@ -17,11 +17,18 @@ const SpotlightCinemaCard: React.FC<{ item: Movie; index: number }> = ({ item, i
     const type = item.media_type || (item.title ? 'movie' : 'tv');
     const viewers = useMemo(() => Math.floor(Math.random() * 5000) + 100, [item.id]);
 
-    const imageUrl = `${IMAGE_BASE_URL}${BACKDROP_SIZE_MEDIUM}${item.backdrop_path}`;
     const handleGlow = useCallback(() => {
-        document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
-        document.body.classList.add('has-dynamic-bg');
-    }, [imageUrl]);
+        if (window.cineStreamBgTimeoutId) {
+            clearTimeout(window.cineStreamBgTimeoutId);
+        }
+        window.cineStreamBgTimeoutId = window.setTimeout(() => {
+            if (item.backdrop_path) {
+                const imageUrl = `${IMAGE_BASE_URL}w300${item.backdrop_path}`;
+                document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
+                document.body.classList.add('has-dynamic-bg');
+            }
+        }, 200);
+    }, [item.backdrop_path]);
 
     return (
         <div
@@ -30,7 +37,7 @@ const SpotlightCinemaCard: React.FC<{ item: Movie; index: number }> = ({ item, i
             onMouseEnter={handleGlow}
             onFocus={handleGlow}
             tabIndex={0}
-            style={{ '--glow-image-url': `url(${imageUrl})` } as React.CSSProperties}
+            style={{ '--glow-image-url': `url(${IMAGE_BASE_URL}w500${item.backdrop_path})` } as React.CSSProperties}
         >
             <div className="relative overflow-hidden rounded-lg shadow-xl bg-[var(--surface)] aspect-video interactive-card">
                 <img
@@ -64,6 +71,10 @@ const SpotlightCinemaCard: React.FC<{ item: Movie; index: number }> = ({ item, i
 const SpotlightCinemaRow: React.FC<{ title: string; items: Movie[] }> = ({ title, items }) => {
     if (!items || items.length === 0) return null;
     const handleMouseLeaveList = useCallback(() => {
+        if (window.cineStreamBgTimeoutId) {
+            clearTimeout(window.cineStreamBgTimeoutId);
+            window.cineStreamBgTimeoutId = null;
+        }
         document.body.classList.remove('has-dynamic-bg');
     }, []);
     return (
@@ -92,11 +103,19 @@ const CinemaCard: React.FC<{ item: Movie; index: number }> = ({ item, index }) =
     };
 
     if (!item.poster_path) return null;
-    const imageUrl = `${IMAGE_BASE_URL}${POSTER_SIZE}${item.poster_path}`;
+    
     const handleGlow = useCallback(() => {
-        document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
-        document.body.classList.add('has-dynamic-bg');
-    }, [imageUrl]);
+        if (window.cineStreamBgTimeoutId) {
+            clearTimeout(window.cineStreamBgTimeoutId);
+        }
+        window.cineStreamBgTimeoutId = window.setTimeout(() => {
+            if (item.poster_path) {
+                const imageUrl = `${IMAGE_BASE_URL}w342${item.poster_path}`;
+                document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
+                document.body.classList.add('has-dynamic-bg');
+            }
+        }, 200);
+    }, [item.poster_path]);
 
     return (
         <div
@@ -105,7 +124,7 @@ const CinemaCard: React.FC<{ item: Movie; index: number }> = ({ item, index }) =
             onMouseEnter={handleGlow}
             onFocus={handleGlow}
             tabIndex={0}
-            style={{ '--glow-image-url': `url(${imageUrl})` } as React.CSSProperties}
+            style={{ '--glow-image-url': `url(${IMAGE_BASE_URL}w342${item.poster_path})` } as React.CSSProperties}
         >
             <div className="relative overflow-hidden rounded-lg shadow-lg bg-[var(--surface)] aspect-[2/3] interactive-card">
                 <img
@@ -139,6 +158,10 @@ const CinemaCard: React.FC<{ item: Movie; index: number }> = ({ item, index }) =
 const CinemaCategoryRow: React.FC<{ title: string; items: Movie[] }> = ({ title, items }) => {
     if (!items || items.length === 0) return null;
     const handleMouseLeaveList = useCallback(() => {
+        if (window.cineStreamBgTimeoutId) {
+            clearTimeout(window.cineStreamBgTimeoutId);
+            window.cineStreamBgTimeoutId = null;
+        }
         document.body.classList.remove('has-dynamic-bg');
     }, []);
     return (
