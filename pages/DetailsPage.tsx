@@ -17,16 +17,11 @@ const SimilarItemCard: React.FC<{ item: Movie, index: number }> = ({ item, index
   };
 
   const handleGlow = useCallback(() => {
-    if (window.cineStreamBgTimeoutId) {
-        clearTimeout(window.cineStreamBgTimeoutId);
+    if (item.poster_path) {
+        const imageUrl = `${IMAGE_BASE_URL}w342${item.poster_path}`;
+        document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
+        document.body.classList.add('has-dynamic-bg');
     }
-    window.cineStreamBgTimeoutId = window.setTimeout(() => {
-        if (item.poster_path) {
-            const imageUrl = `${IMAGE_BASE_URL}w342${item.poster_path}`;
-            document.body.style.setProperty('--dynamic-bg-image', `url(${imageUrl})`);
-            document.body.classList.add('has-dynamic-bg');
-        }
-    }, 200);
   }, [item.poster_path]);
 
   if (!item.poster_path) return null;
@@ -149,10 +144,6 @@ const DetailsPage: React.FC = () => {
   }
 
   const handleMouseLeaveList = useCallback(() => {
-    if (window.cineStreamBgTimeoutId) {
-        clearTimeout(window.cineStreamBgTimeoutId);
-        window.cineStreamBgTimeoutId = null;
-    }
     document.body.classList.remove('has-dynamic-bg');
   }, []);
 
