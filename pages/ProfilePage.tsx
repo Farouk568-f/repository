@@ -47,14 +47,14 @@ const ProfileCard: React.FC<{
     isManaging?: boolean;
 }> = ({ profile, isAddButton = false, onClick, isManaging = false }) => {
     const { t } = useTranslation();
-    const baseClasses = "flex flex-col items-center gap-2 group cursor-pointer w-28 md:w-36 text-center";
+    const baseClasses = "flex flex-col items-center gap-2 group cursor-pointer w-28 md:w-36 text-center focusable";
     const imageContainerClasses = "w-full aspect-square rounded-md overflow-hidden relative transition-all duration-300";
     const imageClasses = "w-full h-full object-cover";
     const nameClasses = "text-gray-400 group-hover:text-white transition-colors text-lg truncate w-full";
     
     if (isAddButton) {
         return (
-            <div className={baseClasses} onClick={onClick}>
+            <div className={baseClasses} onClick={onClick} onKeyDown={(e) => e.key === 'Enter' && onClick()} tabIndex={0}>
                 <div className={`${imageContainerClasses} flex items-center justify-center`}>
                      <div className="w-full h-full flex items-center justify-center bg-transparent group-hover:bg-zinc-800 transition-colors">
                         <i className="fas fa-plus-circle text-6xl md:text-8xl text-gray-400 group-hover:text-white transition-colors"></i>
@@ -68,7 +68,7 @@ const ProfileCard: React.FC<{
     if (!profile) return null;
 
     return (
-        <div className={baseClasses} onClick={onClick}>
+        <div className={baseClasses} onClick={onClick} onKeyDown={(e) => e.key === 'Enter' && onClick()} tabIndex={0}>
             <div className={`${imageContainerClasses} ${isManaging ? 'border-2 border-transparent group-hover:border-white' : 'group-hover:scale-105'}`}>
                 <img src={profile.avatar} alt={profile.name} className={imageClasses} />
                 {isManaging && (
@@ -375,7 +375,7 @@ const ProfilePage: React.FC = () => {
             </div>
             <button
                 onClick={() => setIsManaging(!isManaging)}
-                className="mt-16 px-8 py-2.5 text-lg font-normal bg-transparent text-gray-400 border border-gray-600 uppercase tracking-widest hover:border-white hover:text-white transition-colors"
+                className="mt-16 px-8 py-2.5 text-lg font-normal bg-transparent text-gray-400 border border-gray-600 uppercase tracking-widest hover:border-white hover:text-white transition-colors focusable"
             >
                 {isManaging ? t('done') : t('manageProfiles')}
             </button>
