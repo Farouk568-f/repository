@@ -5,7 +5,7 @@ import { TMDB_API_KEY, TMDB_BASE_URL, SCRAPER_API_URL, AVAILABLE_PROVIDERS } fro
 import { Movie, SubtitleTrack, StreamLink, StreamData } from '../types';
 
 const fetchWithTimeout = async (resource: RequestInfo, options: RequestInit & { timeout?: number } = {}) => {
-  const { timeout = 7000, ...fetchOptions } = options; // Increased default timeout for scraper
+  const { timeout = 15000, ...fetchOptions } = options; // Increased default timeout for scraper
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
 
