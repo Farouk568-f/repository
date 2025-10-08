@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as Hls from 'hls.js';
 import { Movie, Episode, SubtitleTrack, SubtitleSettings, StreamLink } from '../types';
 import { useProfile } from '../contexts/ProfileContext';
 import { useTranslation } from '../contexts/LanguageContext';
-import { fetchStreamUrl, fetchFromTMDB } from '../services/apiService';
+import { fetchStreamUrl, fetchFromTMDB, analyzeSubtitlesForSkips } from '../services/apiService';
 import * as Icons from './Icons';
 import { IMAGE_BASE_URL, BACKDROP_SIZE_MEDIUM } from '../contexts/constants';
 import { translateSrtViaGoogle } from '../services/translationService';
@@ -26,6 +27,11 @@ interface PlayerProps {
     onEpisodeSelect: (episode: Episode) => void;
     isOffline?: boolean;
     downloadId?: string;
+}
+
+interface SkipSegment {
+    start: number;
+    end: number;
 }
 
 const formatTime = (seconds: number) => {
@@ -356,6 +362,9 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
     const [showSubtitlesPanel, setShowSubtitlesPanel] = useState(false);
     const [playbackRate, setPlaybackRate] = useState(1);
 
+    const [skipSegments, setSkipSegments] = useState<{ intro: SkipSegment | null; outro: SkipSegment | null }>({ intro: null, outro: null });
+    const [activeSkip, setActiveSkip] = useState<'intro' | 'outro' | null>(null);
+
     const handleSubtitleSettingsChange = (newSettings: Partial<SubtitleSettings>) => {
         setSubtitleSettings(prev => {
             const updated = { ...prev, ...newSettings };
@@ -406,6 +415,7 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
             if (!initialStreamUrl) setActiveStreamUrl(null);
             setSubtitles([]);
             setVttTracks([]);
+            setSkipSegments({ intro: null, outro: null });
             
             try {
                 // Fetch recommendations
@@ -422,7 +432,23 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
                         const initialLink = data.links[0];
                         setActiveStreamUrl(initialLink.url);
                         setActiveQuality(initialLink.quality);
-                        if (data.subtitles) setSubtitles(data.subtitles);
+                        if (data.subtitles && data.subtitles.length > 0) {
+                            setSubtitles(data.subtitles);
+                            // Trigger analysis
+                             try {
+                                const firstSub = data.subtitles[0];
+                                const res = await fetch(firstSub.url);
+                                if (res.ok) {
+                                    const srtText = await res.text();
+                                    // Fire and forget
+                                    analyzeSubtitlesForSkips(srtText)
+                                        .then(setSkipSegments)
+                                        .catch(console.error);
+                                }
+                            } catch (e) {
+                                console.error("Failed to fetch/analyze subtitles for skip markers", e);
+                            }
+                        }
                         onProviderSelected(data.provider);
                     } else {
                         throw new Error(t('noStreamLinks'));
@@ -718,6 +744,30 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
         });
     };
 
+    // Effect for Skip Intro/Outro logic
+    useEffect(() => {
+        const { intro, outro } = skipSegments;
+        if (intro && currentTime >= intro.start && currentTime < intro.end) {
+            setActiveSkip('intro');
+        } else if (outro && duration > 0 && currentTime >= outro.start && currentTime < outro.end) {
+            setActiveSkip('outro');
+        } else if (activeSkip) {
+            setActiveSkip(null);
+        }
+    }, [currentTime, duration, skipSegments, activeSkip]);
+
+    const handleSkip = useCallback(() => {
+        const video = videoRef.current;
+        if (!video || !activeSkip || !skipSegments[activeSkip]) return;
+        
+        const segment = skipSegments[activeSkip];
+        if (segment) {
+            video.currentTime = segment.end;
+        }
+        setActiveSkip(null);
+    }, [activeSkip, skipSegments]);
+
+
     return (
         <div ref={playerContainerRef} className="player-container-scope relative w-full h-full bg-black flex items-center justify-center overflow-hidden" onClick={togglePlay}>
             <video ref={combinedRef} className="w-full h-full object-contain" playsInline autoPlay preload="metadata">
@@ -756,6 +806,15 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
                 </div>
             )}
             
+            {activeSkip && (
+                <button
+                    onClick={(e) => { e.stopPropagation(); handleSkip(); }}
+                    className="absolute bottom-36 right-8 z-20 px-6 py-3 bg-black/60 backdrop-blur-md rounded-full text-white font-semibold text-lg hover:bg-white hover:text-black transition-all duration-300 animate-fade-in-up focusable"
+                >
+                    {activeSkip === 'intro' ? 'Skip Intro' : 'Skip Outro'}
+                </button>
+            )}
+
             <Controls
                 showControls={isOverlayVisible} isPlaying={isPlaying} currentTime={currentTime} duration={duration}
                 togglePlay={togglePlay}
@@ -771,6 +830,7 @@ const VideoPlayer: React.FC<PlayerProps> = ({ item, itemType, initialSeason, ini
                 progressBarRef={progressBarRef}
                 recsPanelRef={recsPanelRef}
                 isRecsFocused={isRecsFocused}
+                skipSegments={skipSegments}
             />
 
             <SubtitlesPanel
@@ -805,7 +865,7 @@ const Controls: React.FC<any> = ({
     settingsButtonRef, subtitlesButtonRef,
     recommendations, onRecommendationClick,
     infoPanelRef, controlsPanelRef, progressBarRef, recsPanelRef,
-    isRecsFocused
+    isRecsFocused, skipSegments
 }) => {
     
     const handleProgressInteraction = (e: React.MouseEvent | React.TouchEvent) => {
@@ -857,6 +917,24 @@ const Controls: React.FC<any> = ({
                         className="w-full flex items-center cursor-pointer group h-4 focusable progress-bar-focusable"
                     >
                         <div className="relative w-full bg-white/30 rounded-full transition-all duration-200 h-1.5 group-hover:h-2.5 group-focus-within:h-2.5">
+                            {skipSegments.intro && duration > 0 && (
+                                <div
+                                    className="absolute h-full bg-red-600/50 rounded-full pointer-events-none"
+                                    style={{
+                                        left: `${(skipSegments.intro.start / duration) * 100}%`,
+                                        width: `${((skipSegments.intro.end - skipSegments.intro.start) / duration) * 100}%`
+                                    }}
+                                />
+                            )}
+                            {skipSegments.outro && duration > 0 && (
+                                <div
+                                    className="absolute h-full bg-red-600/50 rounded-full pointer-events-none"
+                                    style={{
+                                        left: `${(skipSegments.outro.start / duration) * 100}%`,
+                                        width: `${((skipSegments.outro.end - skipSegments.outro.start) / duration) * 100}%`
+                                    }}
+                                />
+                            )}
                             <div className="absolute h-full bg-red-600 rounded-full" style={{ width: `${(currentTime / duration) * 100}%` }} />
                             <div 
                                 className="absolute top-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity pointer-events-none"
@@ -865,7 +943,7 @@ const Controls: React.FC<any> = ({
                                     transform: 'translate(-50%, -50%)',
                                 }}
                             />
-                        </div>
+                        </div> 
                     </div>
                     <div className="flex justify-between items-center mt-1 px-1">
                         <span className="text-xs font-mono">{formatTime(currentTime)}</span>
