@@ -1,6 +1,5 @@
 
-
-
+import { GoogleGenAI, Type } from "@google/genai";
 import { TMDB_API_KEY, TMDB_BASE_URL, SCRAPER_API_URL, AVAILABLE_PROVIDERS } from '../contexts/constants';
 import { Movie, SubtitleTrack, StreamLink, StreamData } from '../types';
 
@@ -439,4 +438,79 @@ export const getDownloadedVideoURL = async (id: string): Promise<string | null> 
     db.close();
     if (!blob) return null;
     return URL.createObjectURL(blob);
+};
+
+const skipTimesSchema = {
+    type: Type.OBJECT,
+    properties: {
+        intro: {
+            type: Type.OBJECT,
+            nullable: true,
+            properties: {
+                start: { type: Type.NUMBER, description: "The start time of the intro in seconds from the beginning of the video." },
+                end: { type: Type.NUMBER, description: "The end time of the intro in seconds from the beginning of the video." }
+            },
+            required: ['start', 'end']
+        },
+        outro: {
+            type: Type.OBJECT,
+            nullable: true,
+            properties: {
+                start: { type: Type.NUMBER, description: "The start time of the outro in seconds from the beginning of the video." },
+                end: { type: Type.NUMBER, description: "The end time of the outro in seconds from the beginning of the video." }
+            },
+            required: ['start', 'end']
+        }
+    }
+};
+
+export const analyzeSubtitlesForSkips = async (srtContent: string): Promise<{ intro: { start: number, end: number } | null; outro: { start: number, end: number } | null; }> => {
+    if (!process.env.API_KEY) {
+        console.error("Gemini API key not found.");
+        return { intro: null, outro: null };
+    }
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+    const prompt = `You are an expert video editor's assistant. Your task is to analyze subtitle files (SRT format) to identify the start and end times for the intro and outro sequences.
+
+Analyze the provided SRT content. Look for significant gaps in dialogue that match typical intro/outro durations. Intros usually happen within the first few minutes, and outros at the very end. The presence of musical notes (♪) can also be an indicator, but the primary signal is a lack of spoken words for a sustained period (e.g., 30-90 seconds).
+
+Here are typical durations:
+- Modern series (Netflix, HBO): 30–90 seconds for intros.
+- Anime series: 60-90 seconds for intros.
+- Outros are usually shorter, 30-60 seconds, and occur before the absolute end of the file.
+
+Return your findings as a JSON object that strictly follows the provided schema. The times must be in seconds. If an intro or outro is not detected, its value should be null.
+
+SRT Content:
+"""
+${srtContent.substring(0, 40000)}
+"""
+`;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: skipTimesSchema,
+            },
+        });
+        
+        const jsonText = response.text.trim();
+        const parsed = JSON.parse(jsonText);
+        
+        const result = {
+            intro: parsed.intro && typeof parsed.intro.start === 'number' && typeof parsed.intro.end === 'number' ? { start: parsed.intro.start, end: parsed.intro.end } : null,
+            outro: parsed.outro && typeof parsed.outro.start === 'number' && typeof parsed.outro.end === 'number' ? { start: parsed.outro.start, end: parsed.outro.end } : null,
+        };
+
+        console.log("Gemini analysis result:", result);
+        return result;
+
+    } catch (error) {
+        console.error("Error analyzing subtitles with Gemini:", error);
+        return { intro: null, outro: null };
+    }
 };
