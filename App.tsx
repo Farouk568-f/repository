@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, createContext, useContext, ReactNode } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import PlayerPage from './pages/PlayerPage';
@@ -13,6 +13,7 @@ import CinemaPage from './pages/CinemaPage';
 import LiveRoomPage from './pages/LiveRoomPage';
 import ShortsPage from './pages/ShortsPage';
 import YouPage from './pages/YouPage';
+import AISearchPage from './pages/AISearchPage';
 import { ProfileProvider, useProfile } from './contexts/ProfileContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { PlayerProvider } from './contexts/PlayerContext';
@@ -37,7 +38,6 @@ const GlobalModal: React.FC = () => {
 }
 
 const App: React.FC = () => {
-  // Triple-enter cursor state
   const [enterPressCount, setEnterPressCount] = useState(0);
   const [showTvCursor, setShowTvCursor] = useState(false);
   const enterPressTimeout = useRef<number | null>(null);
@@ -45,7 +45,6 @@ const App: React.FC = () => {
   const [clickEffect, setClickEffect] = useState(false);
   
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    // Handle triple-enter for cursor
     if (e.key === 'Enter') {
       if (enterPressTimeout.current) {
         clearTimeout(enterPressTimeout.current);
@@ -59,14 +58,13 @@ const App: React.FC = () => {
       } else {
         enterPressTimeout.current = window.setTimeout(() => {
           setEnterPressCount(0);
-        }, 500); // Reset if presses are too slow
+        }, 500);
       }
     }
 
     if (showTvCursor) {
       if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         setShowTvCursor(false);
-        // Fall through to spatial nav
       } else if (e.key === 'Enter') {
         e.preventDefault();
         const element = document.elementFromPoint(cursorPosition.x, cursorPosition.y);
@@ -77,11 +75,10 @@ const App: React.FC = () => {
         }
         return;
       } else {
-        return; // Let other keys pass through if cursor is active
+        return;
       }
     }
 
-    // --- Spatial Navigation Logic ---
     const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
     if (!arrowKeys.includes(e.key)) {
       return;
@@ -93,7 +90,6 @@ const App: React.FC = () => {
     const modalElement = document.querySelector('.details-modal-content');
     const navigationScope = modalElement || document;
 
-    // If nothing is focused, or the focused element is not part of our system, find the first available one.
     if (!currentElement || !currentElement.matches('.focusable')) {
       const firstFocusable = navigationScope.querySelector('.focusable') as HTMLElement;
       if (firstFocusable) {
@@ -126,8 +122,8 @@ const App: React.FC = () => {
 
       switch (e.key) {
         case 'ArrowRight':
-          if (dx > 0) { // Must be to the right
-            distance = Math.abs(dy) * 2 + dx; // Heavily penalize vertical distance
+          if (dx > 0) {
+            distance = Math.abs(dy) * 2 + dx;
             if (distance < minDistance) {
               minDistance = distance;
               bestCandidate = candidate;
@@ -135,7 +131,7 @@ const App: React.FC = () => {
           }
           break;
         case 'ArrowLeft':
-          if (dx < 0) { // Must be to the left
+          if (dx < 0) {
             distance = Math.abs(dy) * 2 + Math.abs(dx);
             if (distance < minDistance) {
               minDistance = distance;
@@ -144,8 +140,8 @@ const App: React.FC = () => {
           }
           break;
         case 'ArrowDown':
-          if (dy > 0) { // Must be below
-            distance = Math.abs(dx) * 2 + dy; // Heavily penalize horizontal distance
+          if (dy > 0) {
+            distance = Math.abs(dx) * 2 + dy;
             if (distance < minDistance) {
               minDistance = distance;
               bestCandidate = candidate;
@@ -153,7 +149,7 @@ const App: React.FC = () => {
           }
           break;
         case 'ArrowUp':
-          if (dy < 0) { // Must be above
+          if (dy < 0) {
             distance = Math.abs(dx) * 2 + Math.abs(dy);
             if (distance < minDistance) {
               minDistance = distance;
@@ -178,31 +174,32 @@ const App: React.FC = () => {
   return ( 
     <LanguageProvider>
       <ProfileProvider>
-        {showTvCursor && <TVCursor position={cursorPosition} visible={true} clickEffect={clickEffect} />}
-        <HashRouter>
-          <PlayerProvider>
-            <Routes>
-              <Route path="/" element={<ProfilePage />} />
-              <Route path="/home" element={<HomePage />} />
-              <Route path="/movies" element={<MoviesPage />} />
-              <Route path="/tv" element={<TvShowsPage />} />
-              <Route path="/actor/:id" element={<ActorDetailsPage />} />
-              <Route path="/player" element={<PlayerPage />} />
-              <Route path="/favorites" element={<GenericPageWrapper pageType="favorites" />} />
-              <Route path="/search" element={<GenericPageWrapper pageType="search" />} />
-              <Route path="/all/:category" element={<GenericPageWrapper pageType="all" />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/details/:type/:id" element={<DetailsPage />} />
-              <Route path="/cinema" element={<CinemaPage />} />
-              <Route path="/live/:type/:id" element={<LiveRoomPage />} />
-              <Route path="/shorts" element={<ShortsPage />} />
-              <Route path="/you" element={<YouPage />} />
-            </Routes>
-            <PipPlayer />
-            <GlobalModal />
-          </PlayerProvider>
-        </HashRouter>
-        <ToastContainer />
+          {showTvCursor && <TVCursor position={cursorPosition} visible={true} clickEffect={clickEffect} />}
+          <HashRouter>
+            <PlayerProvider>
+              <Routes>
+                <Route path="/" element={<ProfilePage />} />
+                <Route path="/home" element={<HomePage />} />
+                <Route path="/movies" element={<MoviesPage />} />
+                <Route path="/tv" element={<TvShowsPage />} />
+                <Route path="/actor/:id" element={<ActorDetailsPage />} />
+                <Route path="/player" element={<PlayerPage />} />
+                <Route path="/favorites" element={<GenericPageWrapper pageType="favorites" />} />
+                <Route path="/search" element={<GenericPageWrapper pageType="search" />} />
+                <Route path="/all/:category" element={<GenericPageWrapper pageType="all" />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/details/:type/:id" element={<DetailsPage />} />
+                <Route path="/cinema" element={<CinemaPage />} />
+                <Route path="/live/:type/:id" element={<LiveRoomPage />} />
+                <Route path="/shorts" element={<ShortsPage />} />
+                <Route path="/you" element={<YouPage />} />
+                <Route path="/ai-search" element={<AISearchPage />} />
+              </Routes>
+              <PipPlayer />
+              <GlobalModal />
+            </PlayerProvider>
+          </HashRouter>
+          <ToastContainer />
       </ProfileProvider>
     </LanguageProvider>
   );
