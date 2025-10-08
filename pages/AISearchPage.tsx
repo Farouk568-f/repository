@@ -7,6 +7,7 @@ import { useProfile } from '../contexts/ProfileContext';
 import { IMAGE_BASE_URL, BACKDROP_SIZE_MEDIUM } from '../contexts/constants';
 import Layout from '../components/Layout';
 import { useNavigate } from 'react-router-dom';
+import { VirtualKeyboard } from '../components/common';
 
 interface ChatMessage {
   role: 'user' | 'model';
@@ -99,7 +100,9 @@ const AISearchPage: React.FC = () => {
     const [searchResults, setSearchResults] = useState<Movie[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
     const chatEndRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
     const ai = useMemo(() => {
         if (!process.env.API_KEY) return null;
         return new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -107,17 +110,17 @@ const AISearchPage: React.FC = () => {
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages, isLoading]);
+    }, [messages, isLoading, isKeyboardVisible]);
 
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!input.trim() || isLoading || !ai) return;
+    const doSearch = async (query: string) => {
+        if (!query || isLoading || !ai) return;
 
-        const userMessage: ChatMessage = { role: 'user', content: input.trim() };
+        const userMessage: ChatMessage = { role: 'user', content: query };
         setMessages(prev => [...prev, userMessage]);
         setSearchResults([]);
         setInput('');
         setIsLoading(true);
+        setIsKeyboardVisible(false); // Hide keyboard on search
 
         try {
             // Stage 1: Identification Search using Gemini
@@ -168,6 +171,23 @@ const AISearchPage: React.FC = () => {
         }
     };
 
+    const handleFormSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        doSearch(input);
+    };
+
+    const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (isKeyboardVisible) {
+            e.preventDefault();
+            if (e.key === 'ArrowDown') {
+                const firstKey = document.querySelector('[data-row="0"][data-col="0"]') as HTMLElement | null;
+                firstKey?.focus();
+            } else if (e.key === 'Enter') {
+                doSearch(input);
+            }
+        }
+    };
+    
     if (!ai) {
         return (
              <Layout>
@@ -184,7 +204,14 @@ const AISearchPage: React.FC = () => {
     return (
         <Layout>
             <div className="pt-24 px-4 flex justify-center">
-                <div className="w-full max-w-3xl flex flex-col" style={{ height: 'calc(100vh - 9rem)' }}>
+                <div 
+                    className="w-full max-w-3xl flex flex-col" 
+                    style={{ 
+                        height: 'calc(100vh - 6rem)',
+                        paddingBottom: isKeyboardVisible ? '280px' : '0',
+                        transition: 'padding-bottom 0.3s ease-out'
+                    }}
+                >
                     <main className="flex-1 overflow-y-auto p-4 no-scrollbar">
                         <div className="space-y-4">
                             {messages.map((msg, index) => (
@@ -213,7 +240,7 @@ const AISearchPage: React.FC = () => {
    
                         {searchResults.length > 0 && (
                             <div className="mt-6 pt-6 border-t border-zinc-700/50">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     {searchResults.map((movie, index) => <SearchResultCard key={movie.id} movie={movie} index={index} />)}
                                 </div>
                             </div>
@@ -221,15 +248,17 @@ const AISearchPage: React.FC = () => {
                     </main>
 
                     <footer className="p-4 flex-shrink-0">
-                        <form onSubmit={handleSendMessage} className="flex items-center gap-3">
+                        <form onSubmit={handleFormSubmit} className="flex items-center gap-3">
                             <input
+                                ref={inputRef}
                                 type="text"
                                 value={input}
-                                onChange={(e) => setInput(e.target.value)}
+                                onFocus={() => setIsKeyboardVisible(true)}
+                                readOnly
+                                onKeyDown={handleInputKeyDown}
                                 placeholder={t('aiSearchPlaceholder')}
                                 className="flex-1 bg-zinc-700 h-12 px-4 rounded-full text-white placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focusable"
                                 disabled={isLoading}
-                                autoFocus
                             />
                             <button type="submit" disabled={isLoading || !input.trim()} className="w-12 h-12 bg-[var(--primary)] rounded-full flex items-center justify-center text-white disabled:bg-zinc-600 btn-press focusable">
                                 <i className="fa-solid fa-arrow-up text-lg"></i>
@@ -238,6 +267,18 @@ const AISearchPage: React.FC = () => {
                     </footer>
                 </div>
             </div>
+            {isKeyboardVisible && (
+                <VirtualKeyboard
+                    isVisible={isKeyboardVisible}
+                    onInput={(char) => setInput(prev => prev + char)}
+                    onBackspace={() => setInput(prev => prev.slice(0, -1))}
+                    onClose={() => {
+                        setIsKeyboardVisible(false);
+                        inputRef.current?.blur();
+                    }}
+                    onFocusUp={() => inputRef.current?.focus()}
+                />
+            )}
         </Layout>
     );
 };
