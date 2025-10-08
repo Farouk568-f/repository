@@ -15,6 +15,10 @@ const TopNavbar: React.FC = () => {
     { to: '/favorites', text: t('myList') },
   ];
 
+  const navItemClasses = "transition-all duration-200 py-2 px-4 rounded-full focusable text-zinc-300 hover:text-white";
+  const activeNavItemClasses = "text-black bg-white font-semibold";
+
+
   return (
     <header className={`absolute top-0 w-full z-40 flex items-center h-20 px-4 md:px-10 bg-transparent`}>
       {/* Left Side: Avatar */}
@@ -38,18 +42,15 @@ const TopNavbar: React.FC = () => {
           <button onClick={() => navigate('/search')} aria-label={t('search')} className="text-2xl text-zinc-100 hover:text-white transition-colors focusable rounded-full w-12 h-12 flex items-center justify-center">
             <i className="fas fa-search"></i>
           </button>
-          {navLinks.map(link => (
-            <NavLink
-              key={link.text}
-              to={link.to}
-              tabIndex={0}
-              className={({ isActive }) =>
-                `transition-all duration-200 py-2 px-4 rounded-full focusable ${isActive ? 'text-black bg-white font-semibold' : 'text-zinc-300 hover:text-white'}`
-              }
-            >
-              {link.text}
-            </NavLink>
-          ))}
+          
+          <NavLink to="/home" className={({isActive}) => `${navItemClasses} ${isActive ? activeNavItemClasses : ''}`}>{t('home')}</NavLink>
+          <NavLink to="/tv" className={({isActive}) => `${navItemClasses} ${isActive ? activeNavItemClasses : ''}`}>{t('tvShows')}</NavLink>
+          <NavLink to="/movies" className={({isActive}) => `${navItemClasses} ${isActive ? activeNavItemClasses : ''}`}>{t('movies')}</NavLink>
+
+          <NavLink to="/ai-search" className={({isActive}) => `${navItemClasses} ${isActive ? activeNavItemClasses : ''}`}>{t('aiSearch')}</NavLink>
+          
+          <NavLink to="/favorites" className={({isActive}) => `${navItemClasses} ${isActive ? activeNavItemClasses : ''}`}>{t('myList')}</NavLink>
+
         </nav>
       </div>
 
