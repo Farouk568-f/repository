@@ -79,6 +79,10 @@ const App: React.FC = () => {
       }
     }
 
+    if (e.defaultPrevented) {
+        return;
+    }
+
     const arrowKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
     if (!arrowKeys.includes(e.key)) {
       return;
