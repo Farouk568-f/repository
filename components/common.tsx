@@ -1,5 +1,3 @@
-
-
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { useNavigate } from 'react-router-dom';
@@ -763,6 +761,179 @@ export const CustomSelect: React.FC<{
                     </ul>
                 </div>
             )}
+        </div>
+    );
+};
+
+export const VirtualKeyboard: React.FC<{
+    onInput: (char: string) => void;
+    onBackspace: () => void;
+    onClose: () => void;
+    onFocusUp: () => void;
+    isVisible: boolean;
+}> = ({ onInput, onBackspace, onClose, onFocusUp, isVisible }) => {
+    const [layout, setLayout] = useState<'en' | 'ar'>('en');
+    const [isShift, setIsShift] = useState(false);
+    const keyboardRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (!isVisible) return;
+
+        const findElementInRow = (row: number, currentCol: number): HTMLElement | null => {
+            if (!keyboardRef.current) return null;
+
+            const targetRowElements = Array.from(keyboardRef.current.querySelectorAll<HTMLElement>(`[data-row="${row}"]`));
+            if (targetRowElements.length === 0) return null;
+
+            // 1. Try for a perfect column match
+            const perfectMatch = targetRowElements.find(el => parseInt(el.dataset.col || '-1', 10) === currentCol);
+            if (perfectMatch) return perfectMatch;
+
+            // 2. Find the closest column if no perfect match
+            return targetRowElements.reduce((closest, current) => {
+                const closestCol = parseInt(closest.dataset.col || '0', 10);
+                const currentColAttr = parseInt(current.dataset.col || '0', 10);
+                const distToClosest = Math.abs(closestCol - currentCol);
+                const distToCurrent = Math.abs(currentColAttr - currentCol);
+
+                if (distToCurrent < distToClosest) {
+                    return current;
+                }
+                if (distToCurrent === distToClosest) {
+                    return currentColAttr < closestCol ? current : closest;
+                }
+                return closest;
+            });
+        };
+
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const acceptedKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'];
+            if (!acceptedKeys.includes(e.key)) return;
+
+            const activeElement = document.activeElement as HTMLElement;
+            if (!keyboardRef.current || !keyboardRef.current.contains(activeElement) || !activeElement.dataset.row) return;
+
+            e.preventDefault();
+
+            const currentRow = parseInt(activeElement.dataset.row, 10);
+            const currentCol = parseInt(activeElement.dataset.col || '0', 10);
+
+            let nextElement: HTMLElement | null = null;
+
+            switch (e.key) {
+                case 'ArrowUp':
+                    if (currentRow === 0) {
+                        onFocusUp();
+                    } else {
+                        nextElement = findElementInRow(currentRow - 1, currentCol);
+                    }
+                    break;
+                case 'ArrowDown':
+                    nextElement = findElementInRow(currentRow + 1, currentCol);
+                    break;
+                case 'ArrowLeft':
+                    nextElement = keyboardRef.current.querySelector(`[data-row="${currentRow}"][data-col="${currentCol - 1}"]`);
+                    break;
+                case 'ArrowRight':
+                    nextElement = keyboardRef.current.querySelector(`[data-row="${currentRow}"][data-col="${currentCol + 1}"]`);
+                    break;
+            }
+
+            if (nextElement) {
+                nextElement.focus();
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isVisible, onFocusUp]);
+
+    const KEY_LAYOUTS = {
+        en: {
+            lower: [ '1234567890', 'qwertyuiop', 'asdfghjkl', 'zxcvbnm' ],
+            upper: [ '1234567890', 'QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM' ]
+        },
+        ar: [ '١٢٣٤٥٦٧٨٩٠', 'ضصثقفغعهخحجد', 'شسيبلاتنمكط', 'ئءؤرلاىةوزظ' ]
+    };
+
+    const handleKeyClick = (key: string) => {
+        onInput(key);
+        if (isShift) setIsShift(false);
+    };
+    
+    const handleSpecialKeyMouseDown = (e: React.MouseEvent) => {
+        e.preventDefault(); 
+    };
+
+    const currentLayout = layout === 'en' ? (isShift ? KEY_LAYOUTS.en.upper : KEY_LAYOUTS.en.lower) : KEY_LAYOUTS.ar;
+
+    const renderRow = (row: string, rowIndex: number) => {
+        let colCounter = 0;
+        const keys = [];
+
+        // English Shift Key
+        if (rowIndex === 3 && layout === 'en') {
+            keys.push(
+                <button key="shift" data-row={rowIndex} data-col={colCounter++} onClick={() => setIsShift(prev => !prev)} onMouseDown={handleSpecialKeyMouseDown} className={`w-12 h-12 flex items-center justify-center rounded-md text-lg btn-press focusable ${isShift ? 'bg-zinc-500' : 'bg-zinc-600 hover:bg-zinc-500'}`}>
+                    <i className="fa-solid fa-arrow-up"></i>
+                </button>
+            );
+        }
+
+        // Character keys
+        for (const key of row) {
+            keys.push(
+                <button key={key} data-row={rowIndex} data-col={colCounter++} onClick={() => handleKeyClick(key)} className="h-12 flex-1 rounded-md text-lg font-semibold bg-zinc-700 hover:bg-zinc-600 btn-press focusable">
+                    {key}
+                </button>
+            );
+        }
+        
+        // English Backspace
+        if (rowIndex === 3 && layout === 'en') {
+             keys.push(
+                 <button key="backspace" data-row={rowIndex} data-col={colCounter++} onClick={onBackspace} onMouseDown={handleSpecialKeyMouseDown} className="w-12 h-12 flex items-center justify-center rounded-md bg-zinc-600 hover:bg-zinc-500 text-lg btn-press focusable">
+                    <i className="fa-solid fa-delete-left"></i>
+                </button>
+             );
+        }
+        
+        return <div key={rowIndex} className="flex justify-center gap-1.5">{keys}</div>;
+    };
+    
+    const renderBottomRow = () => {
+        const rowIndex = currentLayout.length;
+        let colCounter = 0;
+        return (  
+             <div className="flex justify-center gap-1.5">
+                <button data-row={rowIndex} data-col={colCounter++} onClick={() => setLayout(l => l === 'en' ? 'ar' : 'en')} onMouseDown={handleSpecialKeyMouseDown} className="w-14 h-12 flex items-center justify-center rounded-md bg-zinc-600 hover:bg-zinc-500 text-lg btn-press focusable">
+                    <i className="fa-solid fa-globe"></i>
+                </button>
+                <button data-row={rowIndex} data-col={colCounter++} onClick={() => onInput(' ')} className="h-12 flex-[6] rounded-md bg-zinc-700 hover:bg-zinc-600 btn-press focusable"></button>
+                {layout === 'ar' && (
+                    <button data-row={rowIndex} data-col={colCounter++} onClick={onBackspace} onMouseDown={handleSpecialKeyMouseDown} className="w-14 h-12 flex items-center justify-center rounded-md bg-zinc-600 hover:bg-zinc-500 text-lg btn-press focusable">
+                        <i className="fa-solid fa-delete-left"></i>
+                    </button>
+                )}
+                <button data-row={rowIndex} data-col={colCounter++} onClick={onClose} onMouseDown={handleSpecialKeyMouseDown} className="w-14 h-12 flex items-center justify-center rounded-md bg-zinc-600 hover:bg-zinc-500 text-lg btn-press focusable">
+                    <i className="fa-solid fa-chevron-down"></i>
+                </button>
+            </div>
+        );
+    } 
+
+    return (
+        <div 
+            ref={keyboardRef}
+            className="fixed bottom-0 left-0 right-0 bg-zinc-900/90 backdrop-blur-sm p-2 z-50 animate-keyboard-enter touch-manipulation"
+            onMouseDown={handleSpecialKeyMouseDown}
+        >
+            <div className="max-w-4xl mx-auto space-y-2 text-white">
+                {currentLayout.map(renderRow)}
+                {renderBottomRow()}
+            </div>
         </div>
     );
 };
