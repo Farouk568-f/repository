@@ -31,6 +31,13 @@ export const translations = {
     'match': 'Match',
     'download': 'Download',
     'arabic': 'Arabic',
+    'watch': 'Watch',
+
+    // AI Search
+    'aiSearch': 'AI Search',
+    'aiSearchPlaceholder': 'Describe a movie or show to find...',
+    'aiGreeting': "Hello! I'm your movie-finding assistant. Describe what you're in the mood for, and I'll find something for you to watch.",
+    'aiSearching': 'Searching for recommendations...',
 
     // Layout & Nav
     'home': 'Home',
@@ -306,6 +313,13 @@ export const translations = {
     'match': 'مطابقة',
     'download': 'تنزيل',
     'arabic': 'العربية',
+    'watch': 'مشاهدة',
+
+    // AI Search
+    'aiSearch': 'بحث بالذكاء الاصطناعي',
+    'aiSearchPlaceholder': 'صف فيلماً أو مسلسلاً للعثور عليه...',
+    'aiGreeting': "مرحباً! أنا مساعدك في العثور على الأفلام. صف ما ترغب في مشاهدته، وسأجد لك شيئاً مناسباً.",
+    'aiSearching': 'جاري البحث عن توصيات...',
 
     // Layout & Nav
     'home': 'الرئيسية',
