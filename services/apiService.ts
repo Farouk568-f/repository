@@ -534,7 +534,7 @@ export const streamDubbing = async (
     onError: (error: Error) => void,
     onClose: () => void
 ) => {
-    const DUBBING_API_URL = "https://114226ed444b.ngrok-free.app/dub";
+    const DUBBING_API_URL = "https://c7586dca5fe7.ngrok-free.app/dub";
     const encodedUrl = encodeURIComponent(srtUrl);
     const fullUrl = `${DUBBING_API_URL}?url=${encodedUrl}`;
 
